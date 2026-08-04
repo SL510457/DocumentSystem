@@ -60,11 +60,10 @@ def create_document():
     Returns:
         JSON response with the UID of the newly created document.
     """
-    name = 'New Document'
     google_id = session['google_id']
     owner_id = user_service.get_user_by_google_id(google_id).id
     document_status_id = 2
-    document_uid = document_service.create_document(name, owner_id, document_status_id)
+    document_uid = document_service.create_document(owner_id, document_status_id)
     return jsonify({"documentUid": document_uid}), 201
 
 @documents.route('/<uid>', methods=['PUT'], strict_slashes=False)
@@ -150,7 +149,8 @@ def delete_document_lock_session(document_uid):
             curl -i -X DELETE http://localhost:5000/documents/doc1/lock-session
             ```
     """
-    data = document_service.delete_lock_session_by_uid(document_uid)
+    user_id = user_service.get_user_by_google_id(session['google_id']).id
+    data = document_service.delete_lock_session_by_uid(document_uid, user_id)
     if data['state'] == 'true':
         return jsonify(data), 200
     else:
@@ -164,7 +164,8 @@ def update_document_lock_session(document_uid):
              -H "Content-Type: application/json" \
             -d '{}'
     """
-    data = document_service.update_lock_session_by_uid(document_uid)
+    user_id = user_service.get_user_by_google_id(session['google_id']).id
+    data = document_service.update_lock_session_by_uid(document_uid, user_id)
     if data['state'] == 'true':
         return jsonify(data), 200
     else:

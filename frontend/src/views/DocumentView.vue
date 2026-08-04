@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useDebounceFn } from '@vueuse/core';
+import { useUserStore } from '@/stores/user';
+
+const userStore = useUserStore();
 
 const searchedUsers = ref([]);
 const searchLoading = ref(false);
@@ -8,6 +11,14 @@ const selectedUser = ref(null);
 const isPermissionsEditting = ref(false);
 const isPermissionsLoading = ref(false);
 const permissions = ref([]);
+
+const isAuditDialogOpen = ref(false);
+const auditSearchedUsers = ref([]);
+const auditSearchLoading = ref(false);
+const selectedAuditor = ref(null);
+const isAuditSubmitting = ref(false);
+const auditError = ref('');
+const auditSubmitted = ref(false);
 
 const props = defineProps({
   uid: String,
@@ -82,6 +93,133 @@ function changePermission(item, event) {
     console.log(error);
   });
 }
+
+const searchAuditors = useDebounceFn((input) => {
+  if (input.length == 0) {
+    auditSearchedUsers.value = [];
+    return;
+  }
+  auditSearchLoading.value = true;
+  axios.get('/api/v1/users', {
+    params: {
+      'search-text': input,
+      'document-uid': props.uid,
+    }
+  }).then(response => {
+    auditSearchedUsers.value = response.data;
+    auditSearchLoading.value = false;
+  }).catch(error => {
+    console.log(error);
+    auditSearchLoading.value = false;
+  });
+}, 500);
+
+function openAuditDialog() {
+  selectedAuditor.value = null;
+  auditError.value = '';
+  auditSubmitted.value = false;
+  isAuditDialogOpen.value = true;
+}
+
+function closeAuditDialog() {
+  isAuditDialogOpen.value = false;
+}
+
+function submitAudit() {
+  if (!selectedAuditor.value) {
+    auditError.value = 'Please select an auditor first.';
+    return;
+  }
+  isAuditSubmitting.value = true;
+  auditError.value = '';
+  axios.post('/api/v1/audits', {
+    documentUid: props.uid,
+    auditorUsername: selectedAuditor.value,
+  }).then(() => {
+    isAuditSubmitting.value = false;
+    auditSubmitted.value = true;
+  }).catch(error => {
+    isAuditSubmitting.value = false;
+    auditError.value = (error.response && error.response.data && error.response.data.error)
+      ? error.response.data.error
+      : 'Failed to submit document for audit.';
+  });
+}
+
+const auditResult = ref(null);
+const isRejectDialogOpen = ref(false);
+const rejectionReason = ref('');
+const isSubmittingAuditDecision = ref(false);
+const auditDecisionError = ref('');
+
+const isMyPendingAudit = computed(() => {
+  return !!auditResult.value
+    && auditResult.value.auditStatus === 3
+    && auditResult.value.auditor
+    && auditResult.value.auditor.username === userStore.user.username;
+});
+
+const auditStatusChip = computed(() => {
+  if (!auditResult.value) {
+    return null;
+  }
+  const map = {
+    1: { text: 'Approved', color: 'success' },
+    2: { text: 'Rejected', color: 'error' },
+    3: { text: 'Pending', color: 'warning' },
+  };
+  return map[auditResult.value.auditStatus] || null;
+});
+
+function fetchAuditResult() {
+  axios.get('/api/v1/documents/' + props.uid + '/audit-result')
+    .then(response => {
+      auditResult.value = response.data;
+    })
+    .catch(() => {
+      auditResult.value = null;
+    });
+}
+
+function submitAuditDecision(status, reason) {
+  isSubmittingAuditDecision.value = true;
+  auditDecisionError.value = '';
+  axios.post('/api/v1/documents/' + props.uid + '/audit-result', {
+    auditStatus: status,
+    rejectedReason: reason,
+  }).then(() => {
+    isSubmittingAuditDecision.value = false;
+    isRejectDialogOpen.value = false;
+    fetchAuditResult();
+  }).catch(error => {
+    isSubmittingAuditDecision.value = false;
+    auditDecisionError.value = (error.response && error.response.data && error.response.data.error)
+      ? error.response.data.error
+      : 'Failed to submit audit decision.';
+  });
+}
+
+function approveAudit() {
+  submitAuditDecision(1, '');
+}
+
+function openRejectDialog() {
+  rejectionReason.value = '';
+  auditDecisionError.value = '';
+  isRejectDialogOpen.value = true;
+}
+
+function rejectAudit() {
+  if (!rejectionReason.value) {
+    auditDecisionError.value = 'Please enter a reason for rejection.';
+    return;
+  }
+  submitAuditDecision(2, rejectionReason.value);
+}
+
+onMounted(() => {
+  fetchAuditResult();
+});
 </script>
 <template>
   <v-main>
@@ -99,11 +237,20 @@ function changePermission(item, event) {
           v-if="mode === 2"
         ></v-btn>
       </v-app-bar-title>
+      <v-chip
+        v-if="auditStatusChip"
+        class="mr-3"
+        :color="auditStatusChip.color"
+        dark
+      >{{ auditStatusChip.text }}</v-chip>
       <v-spacer></v-spacer>
       <v-btn color="secondary" @click="openPermissionsEdittingDialog" v-if="mode === 2">PERMISSION</v-btn>
       <v-btn color="primary" @click="saveDocument" v-if="mode === 2">SAVE</v-btn>
-      <v-btn color="primary" v-if="mode === 2">AUDIT</v-btn>
+      <v-btn color="primary" @click="openAuditDialog" v-if="mode === 2">AUDIT</v-btn>
+      <v-btn color="success" class="ml-2" @click="approveAudit" :loading="isSubmittingAuditDecision" v-if="isMyPendingAudit">APPROVE</v-btn>
+      <v-btn color="error" class="ml-2" @click="openRejectDialog" :loading="isSubmittingAuditDecision" v-if="isMyPendingAudit">REJECT</v-btn>
     </v-app-bar>
+    <v-alert v-if="loadError" type="error" class="ma-4">{{ loadError }}</v-alert>
     <div class="document">
       <QuillEditor
         :options="options"
@@ -201,6 +348,73 @@ function changePermission(item, event) {
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-dialog v-model="isAuditDialogOpen" width="40%">
+      <v-card>
+        <v-card-title class="text-h6">
+          Submit for Audit
+        </v-card-title>
+        <v-card-text>
+          <template v-if="!auditSubmitted">
+            <v-autocomplete
+              v-model="selectedAuditor"
+              :items="auditSearchedUsers"
+              :loading="auditSearchLoading"
+              menu-icon=""
+              density="comfortable"
+              placeholder="Search auditor by name or email"
+              item-title="username"
+              item-value="username"
+              @update:search="searchAuditors"
+            >
+              <template v-slot:item="{ props, item }">
+                <v-list-item
+                  v-bind="props"
+                  :prepend-avatar="item.raw.profilePictureUrl"
+                  :title="item.raw.name"
+                  :subtitle="item.raw.username"
+                ></v-list-item>
+              </template>
+            </v-autocomplete>
+            <v-alert v-if="auditError" type="error" density="compact" class="mt-2">{{ auditError }}</v-alert>
+          </template>
+          <v-alert v-else type="success" density="compact">
+            Document submitted for audit successfully.
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text color="secondary" @click="closeAuditDialog">{{ auditSubmitted ? 'CLOSE' : 'CANCEL' }}</v-btn>
+          <v-btn
+            v-if="!auditSubmitted"
+            text
+            color="primary"
+            :loading="isAuditSubmitting"
+            @click="submitAudit"
+          >SUBMIT</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="isRejectDialogOpen" width="40%">
+      <v-card>
+        <v-card-title class="text-h6">
+          Reject Document
+        </v-card-title>
+        <v-card-text>
+          <v-textarea
+            v-model="rejectionReason"
+            label="Reason for rejection"
+            auto-grow
+            rows="3"
+          ></v-textarea>
+          <v-alert v-if="auditDecisionError" type="error" density="compact">{{ auditDecisionError }}</v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn text color="secondary" @click="isRejectDialogOpen = false">CANCEL</v-btn>
+          <v-btn text color="error" :loading="isSubmittingAuditDecision" @click="rejectAudit">CONFIRM REJECT</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-main>
 </template>
 
@@ -230,6 +444,7 @@ export default {
       ],
       mode: 1,
       isDocumentLoaded: false,
+      loadError: '',
       // selectedRange: null,
       commentId: 0,
     }
@@ -253,13 +468,16 @@ export default {
     axios.get('/api/v1/documents/' + this.uid)
       .then(response => {
         this.name = response.data.name;
-        this.content = response.data.body;
+        this.content = response.data.body || '';
         this.otherIsEditting = response.data.otherIsEditting;
         this.mode = response.data.mode;
         this.isDocumentLoaded = true;
       })
       .catch(error => {
         console.log(error);
+        this.loadError = (error.response && error.response.data && error.response.data.error)
+          ? error.response.data.error
+          : 'Failed to load this document.';
       });
   },
   unmounted() {

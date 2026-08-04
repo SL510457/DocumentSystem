@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional
 from uuid import uuid4
-from flask import current_app, session
+from flask import current_app
 from model.document_model import Document, DocumentPermissionType
 from repo.document_repo import DocumentRepository
 from repo.user_repo import UserRepository
@@ -61,10 +61,12 @@ class DocumentService:
             current_app.logger.info(f"Unsupport sorting key: {sort}")
             return None
 
-    def create_document(self, name: str, owner_id: int, document_status_id: int) -> str:
+    def create_document(self, owner_id: int, document_status_id: int) -> str:
+        existing_count = self.document_repo.count_documents_by_owner(owner_id)
         document = Document(
             uid=str(uuid4()),
-            name=name,
+            name=f"New Document {existing_count + 1}",
+            body="",
             owner_id=owner_id,
             document_status_id=document_status_id,
             lock_session=""
@@ -111,8 +113,8 @@ class DocumentService:
             mode = self.document_repo.get_document_mode(user, document)
             document_comments = self.document_repo.get_document_comment_by_document_id(document.id)
             current_app.logger.info(f"Get {len(document_comments)} comments of document (uid: {document_uid})")
-            if document.lock_session is not "" and document.lock_session is not None:
-                if document.lock_session != session.get("lock_session"):
+            if document.lock_session != "" and document.lock_session is not None:
+                if document.lock_owner_id != user.id:
                     lock_session = datetime.strptime(document.lock_session, "%Y-%m-%d %H:%M:%S")
                     if lock_session + timedelta(minutes=5) > datetime.now() :
                         current_app.logger.info(f"Document Ud: {document_uid} is locked by other user.")
@@ -120,7 +122,7 @@ class DocumentService:
                             "state": "session is locked by other user."
                         }
             document.lock_session = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            session["lock_session"] = document.lock_session
+            document.lock_owner_id = user.id
             self.document_repo.update_document(document)
             return {
                 "uid": document.uid,
@@ -142,22 +144,21 @@ class DocumentService:
         current_app.logger.info(f"Can't find document by uid: {document_uid}")
         return {"state": "Cant find document by uid"}
 
-    def delete_lock_session_by_uid(self, uid: str):
+    def delete_lock_session_by_uid(self, uid: str, user_id: int):
         document = self.document_repo.get_document_by_uid(uid)
         if document:
-            if session.get("lock_session") == document.lock_session:
+            if document.lock_owner_id == user_id:
                 document.lock_session = None
+                document.lock_owner_id = None
                 self.document_repo.update_document(document)
-                session.pop('lock_session', None)
                 return {"state": "true"}
         return {"state": "false"}
 
-    def update_lock_session_by_uid(self, uid: str):
+    def update_lock_session_by_uid(self, uid: str, user_id: int):
         document = self.document_repo.get_document_by_uid(uid)
         if document:
-            if session.get("lock_session") == document.lock_session:
+            if document.lock_owner_id == user_id:
                 document.lock_session = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                session["lock_session"] = document.lock_session
                 self.document_repo.update_document(document)
                 return {"state": "true", "lock_session": document.lock_session}
         return {"state": "false"}

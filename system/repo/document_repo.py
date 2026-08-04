@@ -25,6 +25,9 @@ class DocumentRepository:
         db.session.commit()
         return document
 
+    def count_documents_by_owner(self, owner_id: int) -> int:
+        return Document.query.filter_by(owner_id=owner_id).count()
+
     def get_document_by_uid(self, uid: str) -> Document:
         return Document.query.filter_by(uid=uid).first()
 

@@ -52,7 +52,8 @@ class AuditService:
             Optional[Dict]: A dictionary containing the new audit's UID if creation is successful, otherwise None.
         """
         auditor = self.user_repo.find_user_by_username(auditor_username)
-        if auditor:
+        document = self.document_repo.get_document_by_uid(document_uid)
+        if auditor and document:
             audit_status = AuditStatus(
                 name = auditor_username,
                 # possible values: "approved(1)", "rejected(2)", "pending(3)"
@@ -63,7 +64,7 @@ class AuditService:
             current_app.logger.info(f"New audits status record {new_audit_status}")
             audit = Audit(
                 uid = str(uuid4()),
-                document_id = document_uid,
+                document_id = document.id,
                 auditor_id = auditor.id,
                 audit_status_id = audit_status.id
             )
