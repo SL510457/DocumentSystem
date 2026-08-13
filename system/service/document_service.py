@@ -44,6 +44,10 @@ class DocumentService:
             else:
                 return self.document_repo.get_permission_by_document_and_user(doc.id, user.id).document_permission_type_id
 
+        def get_document_audit_status(doc):
+            audit = self.audit_repo.get_audit_by_document_id(doc.id)
+            return audit.audit_status_id if audit else 4
+
         try:
             user = self.user_repo.find_user_by_id(user_id)
             docs = self.document_repo.get_all_documents(user, sort)
@@ -52,6 +56,7 @@ class DocumentService:
                     "uid": doc.uid,
                     "name": doc.name,
                     "status": get_document_status(doc, user),
+                    "auditStatus": get_document_audit_status(doc),
                     "body": doc.body,
                 }
                 for doc in docs
@@ -97,6 +102,11 @@ class DocumentService:
                 comments_updates = comments
             )
 
+            audit = self.audit_repo.get_audit_by_document_id(document.id)
+            if audit:
+                audit.audit_status_id = 4
+                self.audit_repo.update_audit(audit)
+
             if is_updated_succesfully == False:
                 current_app.logger.error(f"Error when udpate comment for document id: {document.id}")
             else:
@@ -112,29 +122,31 @@ class DocumentService:
             document = self.document_repo.get_document_by_uid(document_uid)
             mode = self.document_repo.get_document_mode(user, document)
             audit = self.audit_repo.get_audit_by_document_id(document.id)
+            audit_status_id = audit.audit_status_id if audit else 4
             is_assigned_auditor = audit is not None and audit.auditor_id == user.id
             if mode is None and not is_assigned_auditor:
                 current_app.logger.info(f"User {user_id} has no access to document uid: {document_uid}")
                 return {"state": "Cant find document by uid"}
             document_comments = self.document_repo.get_document_comment_by_document_id(document.id)
+            otherIsEditting = False
             current_app.logger.info(f"Get {len(document_comments)} comments of document (uid: {document_uid})")
             if document.lock_session != "" and document.lock_session is not None:
                 if document.lock_owner_id != user.id:
                     lock_session = datetime.strptime(document.lock_session, "%Y-%m-%d %H:%M:%S")
                     if lock_session + timedelta(minutes=5) > datetime.now() :
                         current_app.logger.info(f"Document Ud: {document_uid} is locked by other user.")
-                        return {
-                            "state": "session is locked by other user."
-                        }
+                        otherIsEditting = True
             document.lock_session = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             document.lock_owner_id = user.id
             self.document_repo.update_document(document)
             return {
+                'otherIsEditting': otherIsEditting,
                 "uid": document.uid,
                 "name": document.name,
                 "body": document.body,
                 "otherIsEditing": bool(document.lock_session),
                 "mode": mode,
+                "auditStatus": audit_status_id,
                 "comments": [
                     {
                         "inlineId": comment.inline_id,

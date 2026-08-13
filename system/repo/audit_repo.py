@@ -8,19 +8,19 @@ class AuditRepository:
     Repository class for accessing Audit data.
     """
 
-    def get_all_audits(self, sort: str = 'created_date', auditor_id: int = None) -> List[Audit]:
-        """Retrieve audits with optional sorting, optionally scoped to one auditor."""
-        query = Audit.query
-        if auditor_id is not None:
-            query = query.filter_by(auditor_id=auditor_id)
-        return query.order_by(sort).all()
+    def get_all_audits(self, user_id: int, sort: str = 'created_date') -> List[Audit]:
+        """Retrieve all audits assigned to the given user, with optional sorting."""
+        return Audit.query.\
+            filter(Audit.auditor_id == user_id).\
+            order_by(sort).\
+            all()
 
     def create_audit(self, audit: Audit) -> Audit:
         """Create a new audit record."""
         db.session.add(audit)
         db.session.commit()
         return audit
-    
+
     def update_audit(self, audit: Audit) -> Audit:
         """Update an existing audit record."""
         db.session.commit()
@@ -30,7 +30,7 @@ class AuditRepository:
         db.session.add(audit_status)
         db.session.commit()
         return audit_status
-    
+
     def update_audit_status(self, audit_status: AuditStatus) -> AuditStatus:
         """Update an existing audit status record."""
         db.session.commit()
