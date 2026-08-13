@@ -234,7 +234,7 @@ onMounted(() => {
           density="compact"
           icon="mdi-pencil"
           @click="openNameEdittingDialog"
-          v-if="mode === 2"
+          v-if="isEditableByOwner"
         ></v-btn>
       </v-app-bar-title>
       <v-chip
@@ -244,9 +244,9 @@ onMounted(() => {
         dark
       >{{ auditStatusChip.text }}</v-chip>
       <v-spacer></v-spacer>
-      <v-btn color="secondary" @click="openPermissionsEdittingDialog" v-if="mode === 2">PERMISSION</v-btn>
-      <v-btn color="primary" @click="saveDocument" v-if="mode === 2">SAVE</v-btn>
-      <v-btn color="primary" @click="openAuditDialog" v-if="mode === 2">AUDIT</v-btn>
+      <v-btn color="secondary" @click="openPermissionsEdittingDialog" v-if="isEditableByOwner">PERMISSION</v-btn>
+      <v-btn color="primary" @click="saveDocument" v-if="isEditableByOwner">SAVE</v-btn>
+      <v-btn color="primary" @click="openAuditDialog" v-if="isEditableByOwner">AUDIT</v-btn>
       <v-btn color="success" class="ml-2" @click="approveAudit" :loading="isSubmittingAuditDecision" v-if="isMyPendingAudit">APPROVE</v-btn>
       <v-btn color="error" class="ml-2" @click="openRejectDialog" :loading="isSubmittingAuditDecision" v-if="isMyPendingAudit">REJECT</v-btn>
     </v-app-bar>
@@ -259,9 +259,9 @@ onMounted(() => {
         @contextmenu="onContextMenu"
         @selectionChange="onSelectionChange"
         @textChange="onTextChange"
-        :toolbar="mode === 2 ? 'full' : '#no-toolbar'"
+        :toolbar="isEditableByOwner ? 'full' : '#no-toolbar'"
         ref="quillEditor"
-        :readOnly="mode !== 2"
+        :readOnly="!isEditableByOwner"
         v-if="isDocumentLoaded"
       >
         <template #toolbar>
@@ -452,6 +452,12 @@ export default {
   props: ['uid'],
   components: {
     QuillEditor
+  },
+  computed: {
+    isEditableByOwner() {
+      const isUnderActiveReview = this.auditResult && this.auditResult.auditStatus === 3;
+      return this.mode === 2 && !isUnderActiveReview;
+    },
   },
   mounted() {
     window.addEventListener('beforeunload', (event) => {

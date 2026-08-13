@@ -111,6 +111,11 @@ class DocumentService:
             user = self.user_repo.find_user_by_id(user_id)
             document = self.document_repo.get_document_by_uid(document_uid)
             mode = self.document_repo.get_document_mode(user, document)
+            audit = self.audit_repo.get_audit_by_document_id(document.id)
+            is_assigned_auditor = audit is not None and audit.auditor_id == user.id
+            if mode is None and not is_assigned_auditor:
+                current_app.logger.info(f"User {user_id} has no access to document uid: {document_uid}")
+                return {"state": "Cant find document by uid"}
             document_comments = self.document_repo.get_document_comment_by_document_id(document.id)
             current_app.logger.info(f"Get {len(document_comments)} comments of document (uid: {document_uid})")
             if document.lock_session != "" and document.lock_session is not None:

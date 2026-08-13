@@ -8,9 +8,12 @@ class AuditRepository:
     Repository class for accessing Audit data.
     """
 
-    def get_all_audits(self, sort: str = 'created_date') -> List[Audit]:
-        """Retrieve all audits with optional sorting."""
-        return Audit.query.order_by(sort).all()
+    def get_all_audits(self, sort: str = 'created_date', auditor_id: int = None) -> List[Audit]:
+        """Retrieve audits with optional sorting, optionally scoped to one auditor."""
+        query = Audit.query
+        if auditor_id is not None:
+            query = query.filter_by(auditor_id=auditor_id)
+        return query.order_by(sort).all()
 
     def create_audit(self, audit: Audit) -> Audit:
         """Create a new audit record."""

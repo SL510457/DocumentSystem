@@ -1,7 +1,8 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from typing import List, Dict
 from model.audit_model import Audit
 from service.audit_service import AuditService
+from service.user_service import UserService
 
 from .schema import NewAuditSchema
 from ..util import validate_json
@@ -9,6 +10,7 @@ from ..util import validate_json
 # Create a Blueprint for the audit endpoints
 audit = Blueprint('audit', __name__)
 audit_service = AuditService()
+user_service = UserService()
 
 @audit.route('/', methods=['GET'], strict_slashes=False)
 def get_audits():
@@ -55,7 +57,8 @@ def get_audits():
             ```
     """
     sort = request.args.get(key = 'sort', default = 'created_date')
-    audits = audit_service.get_all_audits(sort)
+    user_id = user_service.get_user_by_google_id(session['google_id']).id
+    audits = audit_service.get_all_audits(sort, user_id)
     return jsonify({"documents": audits})
 
 @audit.route('/', methods=['POST'], strict_slashes=False)

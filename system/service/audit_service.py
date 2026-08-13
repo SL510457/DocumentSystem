@@ -13,28 +13,30 @@ class AuditService:
         self.audit_repo = AuditRepository()
         self.user_repo = UserRepository()
 
-    def get_all_audits(self, sort: str) -> List[Dict]:
-        """Retrieve all audits with optional sorting.
+    def get_all_audits(self, sort: str, auditor_id: int) -> List[Dict]:
+        """Retrieve all audits assigned to the given auditor, with optional sorting.
 
         Args:
             sort (str): The field by which to sort the audits.
+            auditor_id (int): Only return audits assigned to this user.
 
         Returns:
             List[Dict]: A list of dictionaries containing audit details.
         """
-        audits = self.audit_repo.get_all_audits(sort)
-        audits_list = [
-            {
+        audits = self.audit_repo.get_all_audits(sort, auditor_id)
+        audits_list = []
+        for audit in audits:
+            audit_status = self.audit_repo.get_audit_status_by_audit_status_id(audit.audit_status_id)
+            audits_list.append({
                 "auditUid": audit.uid,
                 "documentUid": audit.document.uid,
                 "name": audit.document.name,
-                "status": audit.audit_status_id,
+                "status": audit_status.audit_status_value if audit_status else None,
+                "rejectedReason": audit.rejected_reason,
                 "auditCreatedTime": audit.created_date.isoformat() + 'Z',
                 'auditedTime': audit.updated_date.isoformat() + 'Z',
                 "auditor": audit.auditor.username
-            }
-            for audit in audits
-        ]
+            })
         current_app.logger.info(f"Get {len(audits_list)} audits record")
         return audits_list
 
