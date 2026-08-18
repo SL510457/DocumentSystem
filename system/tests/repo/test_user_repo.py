@@ -6,12 +6,14 @@ from repo.user_repo import UserRepository
 
 # Setup the application context and test client if using Flask or similar framework
 @pytest.fixture
-def user_repository():
-    # Mock the SQLAlchemy session
-    db.session = MagicMock()
+def user_repository(monkeypatch):
+    # Mock the SQLAlchemy session (scoped via monkeypatch so it's restored
+    # after this test, instead of leaking into every test file that runs
+    # afterward in the same pytest process)
+    monkeypatch.setattr(db, "session", MagicMock())
     return UserRepository()
 
-def test_find_user_by_username(user_repository):
+def test_find_user_by_username(user_repository, monkeypatch):
     # Prepare the expected user
     expected_user = User(
         username = "testuser",
@@ -27,8 +29,10 @@ def test_find_user_by_username(user_repository):
     mock_query.filter_by = MagicMock(return_value=mock_filter_by)
     mock_filter_by.first = mock_first
 
-    # Replace the User.query with our mock
-    User.query = mock_query
+    # Replace User.query with our mock, scoped via monkeypatch so it's
+    # restored after this test instead of leaking into every test file
+    # that runs afterward in the same pytest process.
+    monkeypatch.setattr(User, "query", mock_query)
 
     # Execute the method
     result = user_repository.find_user_by_username("testuser")
@@ -67,7 +71,7 @@ def test_update_user_settings(user_repository):
     # Check if commit was called
     db.session.commit.assert_called_once()
 
-def test_find_user_by_id(user_repository):
+def test_find_user_by_id(user_repository, monkeypatch):
     # Mock the query
     expected_user = User(
         id = 1,
@@ -76,16 +80,18 @@ def test_find_user_by_id(user_repository):
         mail = "user@example.com"
     )
 
-    User.query.filter_by = MagicMock(
+    mock_query = MagicMock()
+    mock_query.filter_by = MagicMock(
         return_value = MagicMock(
             first = MagicMock(
                 return_value=expected_user)
             )
         )
+    monkeypatch.setattr(User, "query", mock_query)
 
     # Execute
     result = user_repository.find_user_by_id(1)
 
     # Verify
     assert result == expected_user
-    User.query.filter_by.assert_called_once_with(id=1)
+    mock_query.filter_by.assert_called_once_with(id=1)
