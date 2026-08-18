@@ -102,8 +102,10 @@ class DocumentService:
                 comments_updates = comments
             )
 
+            # Only Approved documents get rolled back to Not Sent on edit.
+            # Rejected stays Rejected (with its reason) until the owner explicitly resubmits.
             audit = self.audit_repo.get_audit_by_document_id(document.id)
-            if audit:
+            if audit and audit.audit_status_id == 1:
                 audit.audit_status_id = 4
                 self.audit_repo.update_audit(audit)
 
