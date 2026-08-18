@@ -14,18 +14,8 @@ class AuditService:
         self.audit_repo = AuditRepository()
         self.user_repo = UserRepository()
 
-    def get_all_audits(self, user_id: int, sort: str) -> List[Dict]:
-        """Retrieve all audits assigned to the given user, with optional sorting.
-
-        Args:
-            user_id (int): Only return audits assigned to this user.
-            sort (str): The field by which to sort the audits.
-
-        Returns:
-            List[Dict]: A list of dictionaries containing audit details.
-        """
-        audits = self.audit_repo.get_all_audits(user_id, sort)
-        audits_list = [
+    def _serialize_audits(self, audits) -> List[Dict]:
+        return [
             {
                 "auditUid": audit.uid,
                 "documentUid": audit.document.uid,
@@ -38,7 +28,36 @@ class AuditService:
             }
             for audit in audits
         ]
+
+    def get_all_audits(self, user_id: int, sort: str) -> List[Dict]:
+        """Retrieve all audits assigned to the given user, with optional sorting.
+
+        Args:
+            user_id (int): Only return audits assigned to this user.
+            sort (str): The field by which to sort the audits.
+
+        Returns:
+            List[Dict]: A list of dictionaries containing audit details.
+        """
+        audits = self.audit_repo.get_all_audits(user_id, sort)
+        audits_list = self._serialize_audits(audits)
         current_app.logger.info(f"Get {len(audits_list)} audits record")
+        return audits_list
+
+    def get_all_audits_by_document_access(self, user_id: int, sort: str) -> List[Dict]:
+        """Retrieve all submitted audits for documents the given user has any access to
+        (owner or collaborator), with optional sorting.
+
+        Args:
+            user_id (int): Only return audits for documents this user can access.
+            sort (str): The field by which to sort the audits.
+
+        Returns:
+            List[Dict]: A list of dictionaries containing audit details.
+        """
+        audits = self.audit_repo.get_all_audits_by_document_access(user_id, sort)
+        audits_list = self._serialize_audits(audits)
+        current_app.logger.info(f"Get {len(audits_list)} reviewable audits record for user {user_id}")
         return audits_list
 
     def create_audit(self, document_uid: str, auditor_username: str) -> Optional[Dict]:

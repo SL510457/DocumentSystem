@@ -5,6 +5,8 @@
 **/__pycache__
 **/.env
 **/client_secret.json
+PORTFOLIO.md
+REVIEWS_FEATURE.md
 # Logs
 logs
 *.log
