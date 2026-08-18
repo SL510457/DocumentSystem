@@ -1,4 +1,4 @@
-from flask import Blueprint, redirect, jsonify, session, abort
+from flask import Blueprint, redirect, jsonify, session, abort, current_app
 from service.GoogleAuthService import GoogleAuthService
 from service.user_service import UserService
 
@@ -61,13 +61,18 @@ def login():
 
 @googleAuth.route("/callback")
 def callback():
-    auth_service.fetch_token()
-    auth_service.validate_state()
-    auth_service.get_user_info()
-    if not user_service.get_user_by_google_id(session['google_id']):
-        user_service.create_user(session['email'], session['name'], session['email'], session['google_id'], third_party_info=session['picture'])
+    try:
+        auth_service.fetch_token()
+        auth_service.validate_state()
+        auth_service.get_user_info()
+        if not user_service.get_user_by_google_id(session['google_id']):
+            user_service.create_user(session['email'], session['name'], session['email'], session['google_id'], third_party_info=session['picture'])
 
-    session['id'] = user_service.get_user_by_google_id(session['google_id']).id
+        session['id'] = user_service.get_user_by_google_id(session['google_id']).id
+    except Exception as e:
+        current_app.logger.error(f"Google sign-in failed: {e}")
+        session.clear()
+        return redirect("/sign-in/")
 
     return redirect("/")
 
