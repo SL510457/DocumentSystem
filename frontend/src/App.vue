@@ -52,6 +52,7 @@ function toggleTheme() {
             :title="userStore.user.name"
           >
           </v-list-item>
+          <v-list-item prepend-icon="mdi-cog-outline" to="/settings" title="SETTINGS"></v-list-item>
           <v-list-item prepend-icon="mdi-theme-light-dark" @click="toggleTheme" title="SWAP THEME"></v-list-item>
           <v-list-item prepend-icon="mdi-logout" href="/api/v1/sign-in/logout" title="LOGOUT">
           </v-list-item>
