@@ -12,6 +12,11 @@ export const useLinksStore = defineStore('links', () => {
       title: 'Audits',
       url: '/audit',
       icon: 'mdi-eye-outline'
+    },
+    {
+      title: 'Reviews',
+      url: '/reviews',
+      icon: 'mdi-file-check-outline'
     }
   ])
 

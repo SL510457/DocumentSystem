@@ -184,13 +184,14 @@ function changePermission(item, event) {
           <v-icon class="ml-2" v-if="auditStatus == 3">mdi-account-clock</v-icon>
           <v-icon class="ml-2" v-if="auditStatus == 4">mdi-file</v-icon>
         </v-chip>
-        <v-btn class="ml-2" color="primary" @click="openAuditingDialog" append-icon="mdi-send" v-if="canEdit && auditStatus === 4">AUDIT</v-btn>
+        <v-btn class="ml-2" color="primary" @click="openAuditingDialog" append-icon="mdi-send" v-if="canEdit && (auditStatus === 4 || auditStatus === 2)">AUDIT</v-btn>
         <v-btn class="ml-2" color="primary" @click="approveAudit" v-if="canAudit" append-icon="mdi-hand-okay">APPROVE</v-btn>
         <v-btn class="ml-2" color="error" @click="rejectAudit" v-if="canAudit" append-icon="mdi-close-thick">REJECT</v-btn>
       </v-sheet>
       <v-btn color="secondary" @click="openPermissionsEdittingDialog" v-if="mode === 2" append-icon="mdi-account">PERMISSION</v-btn>
       <v-btn ref="saveDocumentButton" color="primary" @click="saveDocument" v-if="canEdit" append-icon="mdi-content-save">SAVE</v-btn>
     </v-app-bar>
+    <v-alert v-if="loadError" type="error" class="ma-4">{{ loadError }}</v-alert>
     <div class="document">
       <QuillEditor
         :options="options"
@@ -201,7 +202,7 @@ function changePermission(item, event) {
         @textChange="onTextChange"
         :toolbar="canEdit ? 'full' : '#no-toolbar'"
         ref="quillEditor"
-        :readOnly="mode !== 2"
+        :readOnly="!canEdit"
         v-if="isDocumentLoaded"
       >
         <template #toolbar>
@@ -377,6 +378,7 @@ export default {
       ],
       mode: 1,
       isDocumentLoaded: false,
+      loadError: '',
       auditStatus: 1,
       auditStatusChipText: '',
       auditStatusChipColor: '',
@@ -446,7 +448,7 @@ export default {
       axios.get('/api/v1/documents/' + this.uid)
         .then(response => {
           this.name = response.data.name;
-          this.content = response.data.body;
+          this.content = response.data.body || '';
           this.otherIsEditting = response.data.otherIsEditting;
           this.mode = response.data.mode;
           this.isDocumentLoaded = true;
@@ -454,6 +456,9 @@ export default {
         })
         .catch(error => {
           console.log(error);
+          this.loadError = (error.response && error.response.data && error.response.data.error)
+            ? error.response.data.error
+            : 'Failed to load this document.';
         });
     },
     goBack() {
@@ -630,7 +635,7 @@ export default {
     //   console.log(this.$refs.quillEditor.getHTML());
     // },
     saveDocument() {
-      if (this.auditStatus === 1 || this.auditStatus === 2) {
+      if (this.auditStatus === 1) {
         if (confirm('Do you want to save the document? The audit will be rolled back to the "Not Sent" status.')) {
           axios.put('/api/v1/documents/' + this.uid, {
             body: this.$refs.quillEditor.getHTML(),

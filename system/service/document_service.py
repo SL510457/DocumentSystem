@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional
 from uuid import uuid4
-from flask import current_app, session
+from flask import current_app
 from model.document_model import Document, DocumentPermissionType
 from repo.document_repo import DocumentRepository
 from repo.user_repo import UserRepository
@@ -66,10 +66,12 @@ class DocumentService:
             current_app.logger.info(f"Unsupport sorting key: {sort}")
             return None
 
-    def create_document(self, name: str, owner_id: int, document_status_id: int) -> str:
+    def create_document(self, owner_id: int, document_status_id: int) -> str:
+        existing_count = self.document_repo.count_documents_by_owner(owner_id)
         document = Document(
             uid=str(uuid4()),
-            name=name,
+            name=f"New Document {existing_count + 1}",
+            body="",
             owner_id=owner_id,
             document_status_id=document_status_id,
             lock_session=""
@@ -100,8 +102,10 @@ class DocumentService:
                 comments_updates = comments
             )
 
+            # Only Approved documents get rolled back to Not Sent on edit.
+            # Rejected stays Rejected (with its reason) until the owner explicitly resubmits.
             audit = self.audit_repo.get_audit_by_document_id(document.id)
-            if audit:
+            if audit and audit.audit_status_id == 1:
                 audit.audit_status_id = 4
                 self.audit_repo.update_audit(audit)
 
@@ -119,19 +123,23 @@ class DocumentService:
             user = self.user_repo.find_user_by_id(user_id)
             document = self.document_repo.get_document_by_uid(document_uid)
             mode = self.document_repo.get_document_mode(user, document)
-            audit_status = self.audit_repo.get_audit_by_document_id(document.id)
-            audit_status_id = audit_status.audit_status_id if audit_status else 4
+            audit = self.audit_repo.get_audit_by_document_id(document.id)
+            audit_status_id = audit.audit_status_id if audit else 4
+            is_assigned_auditor = audit is not None and audit.auditor_id == user.id
+            if mode is None and not is_assigned_auditor:
+                current_app.logger.info(f"User {user_id} has no access to document uid: {document_uid}")
+                return {"state": "Cant find document by uid"}
             document_comments = self.document_repo.get_document_comment_by_document_id(document.id)
             otherIsEditting = False
             current_app.logger.info(f"Get {len(document_comments)} comments of document (uid: {document_uid})")
-            if document.lock_session is not "" and document.lock_session is not None:
-                if document.lock_session != session.get("lock_session"):
+            if document.lock_session != "" and document.lock_session is not None:
+                if document.lock_owner_id != user.id:
                     lock_session = datetime.strptime(document.lock_session, "%Y-%m-%d %H:%M:%S")
                     if lock_session + timedelta(minutes=5) > datetime.now() :
                         current_app.logger.info(f"Document Ud: {document_uid} is locked by other user.")
                         otherIsEditting = True
             document.lock_session = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            session["lock_session"] = document.lock_session
+            document.lock_owner_id = user.id
             self.document_repo.update_document(document)
             return {
                 'otherIsEditting': otherIsEditting,
@@ -155,22 +163,21 @@ class DocumentService:
         current_app.logger.info(f"Can't find document by uid: {document_uid}")
         return {"state": "Cant find document by uid"}
 
-    def delete_lock_session_by_uid(self, uid: str):
+    def delete_lock_session_by_uid(self, uid: str, user_id: int):
         document = self.document_repo.get_document_by_uid(uid)
         if document:
-            if session.get("lock_session") == document.lock_session:
+            if document.lock_owner_id == user_id:
                 document.lock_session = None
+                document.lock_owner_id = None
                 self.document_repo.update_document(document)
-                session.pop('lock_session', None)
                 return {"state": "true"}
         return {"state": "false"}
 
-    def update_lock_session_by_uid(self, uid: str):
+    def update_lock_session_by_uid(self, uid: str, user_id: int):
         document = self.document_repo.get_document_by_uid(uid)
         if document:
-            if session.get("lock_session") == document.lock_session:
+            if document.lock_owner_id == user_id:
                 document.lock_session = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                session["lock_session"] = document.lock_session
                 self.document_repo.update_document(document)
                 return {"state": "true", "lock_session": document.lock_session}
         return {"state": "false"}

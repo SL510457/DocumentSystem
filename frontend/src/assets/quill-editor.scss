@@ -13,7 +13,7 @@ p:has( + .quill-comment) {
 .document-card .ql-disabled > .ql-editor {
   height: 200px;
 
-  +> * {
+  > * {
     cursor: pointer;
   }
 }

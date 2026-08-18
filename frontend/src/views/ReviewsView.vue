@@ -48,20 +48,18 @@ export default {
         { title: 'Status', key: 'status' },
         { title: 'Reason', key: 'rejectedReason' },
       ],
-      audits: [
-        // { name: 'Document1', auditor: "Sherry Lee", auditedTime: '0000-00-00', auditCreatedTime: '0000-00-00', link: '/documents/123',  status: 1},
-      ],
+      audits: [],
     }
   },
   mounted() {
-    axios.get('/api/v1/audits')
+    axios.get('/api/v1/audits', { params: { view: 'my_documents' } })
       .then(response => {
         this.audits = response.data.documents;
         this.isLoading = false;
       })
       .catch(error => {
         console.log(error);
-        this.loadError = 'Failed to load audits.';
+        this.loadError = 'Failed to load reviews.';
         this.isLoading = false;
       });
   },
@@ -72,11 +70,4 @@ export default {
 .v-data-table-header__content {
   font-weight: bold;
 }
-/* @media (min- th: 1024px) {
-  .about {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-  }
-} */
 </style>

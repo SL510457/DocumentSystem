@@ -1,6 +1,9 @@
 from typing import List
 
+from sqlalchemy import or_
+
 from model.audit_model import Audit, AuditStatus
+from model.document_model import Document, DocumentPermission
 from model.base_model import db
 
 class AuditRepository:
@@ -9,10 +12,27 @@ class AuditRepository:
     """
 
     def get_all_audits(self, user_id: int, sort: str = 'created_date') -> List[Audit]:
-        """Retrieve all audits with optional sorting."""
+        """Retrieve all audits assigned to the given user, with optional sorting."""
         return Audit.query.\
             filter(Audit.auditor_id == user_id).\
             order_by(sort).\
+            all()
+
+    def get_all_audits_by_document_access(self, user_id: int, sort: str = 'created_date') -> List[Audit]:
+        """Retrieve audits for documents the given user has any access to (owner or
+        collaborator with any permission level), excluding documents that have never
+        been submitted or were reset back to "Not Sent" (audit_status_id == 4).
+        """
+        sort_column = getattr(Audit, sort, Audit.created_date)
+        return Audit.query.\
+            join(Document, Audit.document_id == Document.id).\
+            join(DocumentPermission, DocumentPermission.document_id == Document.id, isouter=True).\
+            filter(
+                or_(Document.owner_id == user_id, DocumentPermission.user_id == user_id),
+                Audit.audit_status_id != 4
+            ).\
+            distinct().\
+            order_by(sort_column).\
             all()
 
     def create_audit(self, audit: Audit) -> Audit:

@@ -59,7 +59,11 @@ def get_audits():
     google_id = session['google_id']
     user_id = user_service.get_user_by_google_id(google_id).id
     sort = request.args.get(key = 'sort', default = 'created_date')
-    audits = audit_service.get_all_audits(user_id, sort)
+    view = request.args.get(key = 'view', default = 'assigned')
+    if view == 'my_documents':
+        audits = audit_service.get_all_audits_by_document_access(user_id, sort)
+    else:
+        audits = audit_service.get_all_audits(user_id, sort)
     return jsonify({"documents": audits})
 
 @audit.route('/', methods=['POST'], strict_slashes=False)

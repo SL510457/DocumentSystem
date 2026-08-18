@@ -9,6 +9,7 @@ class Document(db.Model):
     body = db.Column(db.Text, nullable=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     lock_session = db.Column(db.String(50), nullable=True)
+    lock_owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     document_status_id = db.Column(db.Integer, db.ForeignKey('document_status.id'), nullable=False)
     created_date = db.Column(db.DateTime, default=datetime.utcnow)
     updated_date = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
