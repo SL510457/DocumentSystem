@@ -28,10 +28,10 @@ services:
     networks:
       - document_system_network
     environment:
-      MYSQL_ROOT_PASSWORD: nycu_is_good
-      MYSQL_DATABASE: document_system
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: admin
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     # volumes:
     #   - mysql_data:/var/lib/mysql
 
@@ -57,8 +57,10 @@ services:
     hostname: document-system-api
     networks:
       - document_system_network
+    env_file:
+      - .env
     environment:
-      SQLALCHEMY_DATABASE_URI: mysql://root:nycu_is_good@mysql:3306/document_system
+      SQLALCHEMY_DATABASE_URI: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
     depends_on:
       - mysql
 
@@ -70,6 +72,8 @@ services:
         ENVIRONMENT: dev
     image: document-system-email-notification-system:0.0.1
     hostname: document-system-email-notification-system
+    env_file:
+      - .env
     networks:
       - document_system_network
 

@@ -12,10 +12,11 @@ The backend system of document system.
 * Dev
     * Replace sensitive base on your env:
         ```
-        $ cd system
         $ cp .env.sample .env
         $ vim .env # write down your env
         ```
+        `.env` lives at the repo root, next to `compose.yaml`, because Compose
+        resolves `${...}` in `compose.yaml` from that location only.
     * build and running:
         * You can change dev or production of API when change `ENVIRONMENT`, accept `dev` and `production`
         ```
