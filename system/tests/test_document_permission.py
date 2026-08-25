@@ -13,6 +13,7 @@ from controller.document.routes import documents
 def app() -> Flask:
     app = Flask(__name__)
     app.config['TESTING'] = True
+    app.config['SECRET_KEY'] = 'test'
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -25,7 +26,8 @@ def app() -> Flask:
             username="normalUsername",
             name="User Name",
             mail="test@gmail.com",
-            lock_session="lock_session_1",
+            google_id="google_id_56789",
+            lock_session="",
             notification_flag=True,
             third_party_info="third_party_info_1",
             created_date=datetime(2024, 3, 20, 0, 0, 0),
@@ -36,6 +38,7 @@ def app() -> Flask:
             username="auditorUsername",
             name="Auditor Name",
             mail="test2@gmail.com",
+            google_id="google_id_67890",
             lock_session="lock_session_2",
             notification_flag=True,
             third_party_info="third_party_info_1",
@@ -48,7 +51,7 @@ def app() -> Flask:
             name="New Project",
             body="test body",
             owner_id=56789,
-            lock_session="lock_session_1",
+            lock_session="",
             document_status_id=1,
             created_date=datetime(2024, 4, 27, 0, 0, 0),
             updated_date=datetime(2024, 5, 27, 0, 0, 0)
@@ -57,7 +60,7 @@ def app() -> Flask:
             id=3,
             uid="abc456",
             document_id=2,
-            creator_id=56789,
+            auditor_id=56789,
             audit_status_id=4,
             rejected_reason="Insufficient references",
             created_date=datetime(2024, 4, 27, 0, 0, 0),
@@ -76,7 +79,7 @@ def app() -> Flask:
             name="New Project2",
             body="test body",
             owner_id=56789,
-            lock_session="lock_session_1",
+            lock_session="",
             document_status_id=1,
             created_date=datetime(2024, 4, 27, 0, 0, 0),
             updated_date=datetime(2024, 5, 27, 0, 0, 0)
@@ -85,7 +88,7 @@ def app() -> Flask:
             id=6,
             uid="abc567",
             document_id=5,
-            creator_id=56789,
+            auditor_id=56789,
             audit_status_id=7,
             rejected_reason=None,
             created_date=datetime(2024, 4, 27, 0, 0, 0),
@@ -114,7 +117,7 @@ def app() -> Flask:
         document_permission1 = DocumentPermission(
             id=1,
             document_id=2,
-            user_id=56789,
+            user_id=67890,
             document_permission_type_id=1,
             created_date=datetime(2024, 5, 28, 0, 0, 0),
             updated_date=datetime(2024, 5, 28, 0, 0, 0)
@@ -151,12 +154,14 @@ def client(app: Flask) -> FlaskClient:
     return app.test_client()
 
 def test_get_document_permissions(client: FlaskClient):
+    with client.session_transaction() as sess:
+        sess['google_id'] = 'google_id_56789'
     response = client.get('/api/documents/abc123/permissions')
     assert response.status_code == 200
     data = response.get_json()
     assert "permissions" in data
     assert len(data["permissions"]) == 1
-    assert data["permissions"][0]["username"] == "normalUsername"
+    assert data["permissions"][0]["username"] == "auditorUsername"
 
 def test_update_document_permission(client: FlaskClient):
     response = client.put('/api/documents/abc123/permissions', json={
@@ -183,6 +188,8 @@ def test_update_document_name(client: FlaskClient):
     data = response.get_json()
     assert data["message"] == "Document name updated successfully"
 
+    with client.session_transaction() as sess:
+        sess['google_id'] = 'google_id_56789'
     response = client.get('/api/documents/abc123')
     assert response.status_code == 200
     data = response.get_json()
