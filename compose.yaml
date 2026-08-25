@@ -60,7 +60,7 @@ services:
     env_file:
       - .env
     environment:
-      SQLALCHEMY_DATABASE_URI: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      SQLALCHEMY_DATABASE_URI: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
     depends_on:
       - mysql
 
