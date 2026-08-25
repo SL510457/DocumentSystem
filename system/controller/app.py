@@ -31,6 +31,13 @@ from flask_admin.contrib.sqla import ModelView
 from model.user_model import User
 from model.base_model import db
 
+def env_flag(name):
+    """Read a boolean flag from the environment. Anything unset is False, so a
+    server that forgot to set it gets the safe behaviour rather than the
+    destructive one."""
+    return os.getenv(name, 'false').strip().lower() in ('1', 'true', 'yes')
+
+
 def init_dummy(db):
     user_repo = UserRepository()
     audit_repo = AuditRepository()
@@ -137,7 +144,12 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 
     app.config.from_object(Config)
-    print(app.config)
+
+    # Two separate switches on purpose: the interactive debugger and wiping the
+    # database are unrelated concerns, and the destructive one deserves its own
+    # explicit opt-in.
+    app.config['DEBUG'] = env_flag('FLASK_DEBUG')
+    app.config['SEED_DUMMY_DATA'] = env_flag('SEED_DUMMY_DATA')
 
     # Initialize the database with the app
     db.init_app(app)
@@ -145,7 +157,7 @@ def create_app():
         # Creates all tables
         db.create_all()
 
-        if app.config['DEBUG']:
+        if app.config['SEED_DUMMY_DATA']:
             db.drop_all()
             db.create_all()
             init_dummy(db)
