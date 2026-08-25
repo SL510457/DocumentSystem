@@ -162,6 +162,11 @@ def create_app():
             db.create_all()
             init_dummy(db)
 
+        # Under gunicorn --preload this runs once in the master process, before
+        # it forks. Drop the connections so the workers each open their own
+        # instead of inheriting -- and sharing -- the same sockets.
+        db.engine.dispose()
+
     # register document component
     # and also add prefix /document of URL
     app.register_blueprint(documents, url_prefix='/documents')

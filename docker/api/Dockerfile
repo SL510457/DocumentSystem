@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Development keeps Flask's auto-reloader; production runs a real WSGI server.
 CMD sleep 15; \
     if [ "$ENVIRONMENT" = "production" ]; then \
-        gunicorn "controller.app:create_app()" --bind 0.0.0.0:5000 --workers 2 --access-logfile -; \
+        gunicorn "controller.app:create_app()" --bind 0.0.0.0:5000 --workers 2 --preload --access-logfile -; \
     else \
         python -m controller.app; \
     fi
