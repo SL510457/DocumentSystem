@@ -32,8 +32,8 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    # volumes:
-    #   - mysql_data:/var/lib/mysql
+    volumes:
+      - mysql_data:/var/lib/mysql
 
   rabbitmq:
     image: rabbitmq:3.13-alpine
@@ -88,3 +88,6 @@ services:
       - /app/node_modules # Source: https://stackoverflow.com/questions/29181032/add-a-volume-to-docker-but-exclude-a-sub-folder/62799209#62799209
     networks:
       - document_system_network
+
+volumes:
+  mysql_data:
