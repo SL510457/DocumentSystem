@@ -13,7 +13,7 @@ import 'vuetify/styles'
 
 import App from './App.vue'
 import router from './router'
-import vuetify from './plugins/vuetify.ts'
+import vuetify from './plugins/vuetify'
 
 const app = createApp(App)
 
