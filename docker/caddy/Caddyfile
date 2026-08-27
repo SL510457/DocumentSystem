@@ -1,0 +1,12 @@
+# Caddy terminates TLS and forwards everything to nginx, which keeps doing the
+# routing it already does (static files at /, the API under /api/v1). Putting
+# Caddy in front rather than replacing nginx means the routing config that is
+# already tested does not change.
+#
+# SITE_DOMAIN comes from .env. With a real domain Caddy obtains and renews a
+# Let's Encrypt certificate automatically; with "localhost" it issues one from
+# its own internal CA, which is enough to test the plumbing.
+{$SITE_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy nginx:8080
+}

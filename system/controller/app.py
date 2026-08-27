@@ -129,7 +129,11 @@ def create_app():
     # create instance
     app = Flask(__name__)
     app.secret_key = os.getenv("SECRET_KEY")
-    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1" # to allow Http traffic for local dev
+    # Google's OAuth library refuses plain HTTP unless this is set. Local dev runs
+    # on http://localhost, production runs behind TLS -- so this must be opt-in,
+    # never on by default.
+    if env_flag('OAUTH_ALLOW_INSECURE_TRANSPORT'):
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
     # Redirect AAA/ to AAA, instead the other way around (default)
     # https://stackoverflow.com/a/40365514/19378088
