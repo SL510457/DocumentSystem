@@ -23,6 +23,12 @@
           <v-icon class="ml-2" v-if="item.status == 4">mdi-file</v-icon>
         </v-chip>
       </template>
+      <template #item.auditCreatedTime="{ item }">
+        {{ formatDate(item.auditCreatedTime) }}
+      </template>
+      <template #item.auditedTime="{ item }">
+        {{ item.status == 1 || item.status == 2 ? formatDate(item.auditedTime) : '-' }}
+      </template>
       <template #item.rejectedReason="{ item }">
         {{ item.status == 2 && item.rejectedReason ? item.rejectedReason : '-' }}
       </template>
@@ -50,6 +56,22 @@ export default {
       ],
       audits: [],
     }
+  },
+  methods: {
+    // The API returns ISO timestamps; show something a person would write.
+    formatDate(value: string) {
+      if (!value) {
+        return '-';
+      }
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return '-';
+      }
+      return date.toLocaleString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      });
+    },
   },
   mounted() {
     axios.get('/api/v1/audits', { params: { view: 'my_documents' } })
