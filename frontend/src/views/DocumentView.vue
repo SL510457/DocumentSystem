@@ -353,6 +353,12 @@ function changePermission(item, event) {
 </template>
 
 <script lang="ts">
+// Vue types $refs entries as `unknown`; this names the slice of the Quill
+// editor's API that this component actually calls.
+type QuillEditorRef = {
+  getHTML: () => string
+}
+
 import { QuillEditor } from '@vueup/vue-quill'
 import ContextMenu from '@imengyu/vue3-context-menu'
 import axios from 'axios'
@@ -638,18 +644,18 @@ export default {
       if (this.auditStatus === 1) {
         if (confirm('Do you want to save the document? The audit will be rolled back to the "Not Sent" status.')) {
           axios.put('/api/v1/documents/' + this.uid, {
-            body: this.$refs.quillEditor.getHTML(),
+            body: (this.$refs.quillEditor as QuillEditorRef).getHTML(),
             comments: [],
           }).then(response => {
             console.log(response);
-            this.$router.go();
+            this.$router.go(0);
           }).catch(error => {
             console.log(error);
           });
         }
       } else {
         axios.put('/api/v1/documents/' + this.uid, {
-          body: this.$refs.quillEditor.getHTML(),
+          body: (this.$refs.quillEditor as QuillEditorRef).getHTML(),
           comments: [],
         }).then(response => {
           console.log(response);

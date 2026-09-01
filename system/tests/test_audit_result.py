@@ -25,6 +25,7 @@ def app() -> Flask:
             username="normalUsername",
             name="User Name",
             mail="test@gmail.com",
+            google_id="google_id_56789",
             lock_session="lock_session_1",
             notification_flag=True,
             third_party_info="third_party_info_1",
@@ -36,6 +37,7 @@ def app() -> Flask:
             username="auditorUsername",
             name="Auditor Name",
             mail="test2@gmail.com",
+            google_id="google_id_67890",
             lock_session="lock_session_2",
             notification_flag=True,
             third_party_info="third_party_info_1",
@@ -57,15 +59,15 @@ def app() -> Flask:
             id=3,
             uid="abc456",
             document_id=2,
-            creator_id=56789,
-            audit_status_id=4,
+            auditor_id=67890,
+            audit_status_id=2,
             rejected_reason="Insufficient references",
             created_date=datetime(2024, 4, 27, 0, 0, 0),
             updated_date=datetime(2024, 5, 28, 0, 0, 0)
         )
         audit_status = AuditStatus(
-            id=4,
-            name="Auditor Name",
+            id=2,
+            name="Rejected",
             created_date=datetime(2024, 5, 28, 0, 0, 0),
             updated_date=datetime(2024, 5, 28, 0, 0, 0)
         )
@@ -85,15 +87,15 @@ def app() -> Flask:
             id=6,
             uid="abc567",
             document_id=5,
-            creator_id=56789,
-            audit_status_id=7,
+            auditor_id=67890,
+            audit_status_id=3,
             rejected_reason=None,
             created_date=datetime(2024, 4, 27, 0, 0, 0),
             updated_date=datetime(2024, 5, 28, 0, 0, 0)
         )
         audit_status2 = AuditStatus(
-            id=7,
-            name="Auditor Name",
+            id=3,
+            name="Pending",
             created_date=datetime(2024, 5, 28, 0, 0, 0),
             updated_date=datetime(2024, 5, 28, 0, 0, 0)
         )

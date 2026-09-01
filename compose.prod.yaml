@@ -1,0 +1,114 @@
+# Production stack. Run with:
+#   docker compose -f compose.prod.yaml up -d --build
+#
+# Deliberately a standalone file rather than an override of compose.yaml: the
+# differences are subtractive (no source bind mounts, no Vite dev server), and
+# Compose's merge rules make "remove this" much harder to express than "set this".
+#
+# Differences from compose.yaml:
+#   - nginx serves the built Vue app instead of proxying to the Vite dev server
+#   - the api runs gunicorn instead of Flask's development server
+#   - no source-code bind mounts, so the images are self-contained
+#   - client_secret.json is mounted read-only at run time, never baked into an image
+#   - rabbitmq's port is not published to the host
+name: documentsystem-prod
+
+networks:
+  document_system_network:
+    driver: bridge
+
+services:
+  # TLS termination. Obtains and renews the certificate on its own.
+  caddy:
+    restart: unless-stopped
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Losing this volume means re-requesting them,
+      # and Let's Encrypt rate-limits that.
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - document_system_network
+    depends_on:
+      - nginx
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+      target: production
+    restart: unless-stopped
+    image: document-system-nginx:prod
+    hostname: document-system-nginx
+    networks:
+      - document_system_network
+    depends_on:
+      - api
+
+  mysql:
+    restart: unless-stopped
+    image: mysql:8.3
+    hostname: mysql
+    networks:
+      - document_system_network
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  rabbitmq:
+    restart: unless-stopped
+    image: rabbitmq:3.13-alpine
+    hostname: document-system-rabbitmq
+    networks:
+      - document_system_network
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      args:
+        ENVIRONMENT: production
+    restart: unless-stopped
+    image: document-system-api:prod
+    hostname: document-system-api
+    networks:
+      - document_system_network
+    env_file:
+      - .env
+    environment:
+      SQLALCHEMY_DATABASE_URI: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      FLASK_DEBUG: "false"
+      SEED_DUMMY_DATA: "false"
+    volumes:
+      - ./system/service/client_secret.json:/app/service/client_secret.json:ro
+    depends_on:
+      - mysql
+
+  email_notification_system:
+    build:
+      context: .
+      dockerfile: docker/email_notification_system/Dockerfile
+      args:
+        ENVIRONMENT: production
+    restart: unless-stopped
+    image: document-system-email-notification-system:prod
+    hostname: document-system-email-notification-system
+    networks:
+      - document_system_network
+    env_file:
+      - .env
+
+volumes:
+  mysql_data:
+  caddy_data:
+  caddy_config:

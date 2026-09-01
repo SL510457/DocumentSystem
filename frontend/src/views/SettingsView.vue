@@ -1,87 +1,79 @@
-<template>
-  <v-app>
-    <v-main>
-      <v-container fluid fill-height>
-        <v-row align="center" justify="center" class="fill-height">
-          <v-col cols="12" sm="8" md="6">
-            <v-card class="elevation-2">
-              <v-toolbar color= 'gray'>
-                <v-toolbar-title class="custom-toolbar-title">Settings</v-toolbar-title>
-                <v-spacer></v-spacer>
-              </v-toolbar>
-              <v-card-text class="pa-10">
-                <v-form>
-                  <v-row>
-                    <v-col cols="2" style="display: flex; align-items: center; justify-content: flex-end;">
-                      <span>Username: </span>
-                    </v-col>
-                    <v-col>
-                      <v-text-field 
-                      type="text" 
-                      hide-details>
-                    </v-text-field>
-                    </v-col>
-                  </v-row>
-                  <v-row>
-                    <v-col cols="2" style="display: flex; align-items: center; justify-content: flex-end;">
-                      <span>Name: </span>
-                    </v-col>
-                    <v-col>
-                      <v-text-field 
-                      type="text" 
-                      hide-details
-                    ></v-text-field>
-                    </v-col>
-                  </v-row>
-                  <v-row justify="center">
-                    <v-col cols="auto" class="d-flex align-center">
-                      <v-switch
-                        label="Email Notifications"
-                        color="primary"
-                        true-icon="mdi-email"
-                        false-icon="mdi-email-off"
-                      ></v-switch>
-                    </v-col>
-                  </v-row>
-                  <v-row class="justify-center pb-8">
-                    <v-btn color = 'grey' class="white--text fixed-button" rounded>
-                    Confirm 
-                  </v-btn>
-                  </v-row>
-                </v-form>
-              </v-card-text>
-            </v-card>
-          </v-col>
-        </v-row>
-      </v-container>
-    </v-main>
-  </v-app>
-</template>
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import axios from 'axios';
+import { useUserStore } from '@/stores/user';
 
+const userStore = useUserStore();
 
-<script>
-import { useTheme } from 'vuetify';
+const name = ref('');
+const username = ref('');
+const emailNotifications = ref(true);
+const isLoading = ref(true);
+const loadError = ref('');
+const saveError = ref('');
+const saveSuccess = ref(false);
 
-export default {
-  name: "SettingsPage",
-  data() {
-    return {
+onMounted(() => {
+  axios.get('/api/v1/account/settings/' + encodeURIComponent(userStore.user.username))
+  .then(response => {
+    name.value = response.data.name;
+    username.value = response.data.username;
+    emailNotifications.value = response.data.emailNotifications;
+    isLoading.value = false;
+  }).catch(error => {
+    loadError.value = 'Failed to load settings.';
+    isLoading.value = false;
+  });
+});
 
-    };
-  },
-  computed: {
-  },
-  watch: {
-  },
-  mounted() {
-  }
-};
-
+function saveSettings() {
+  saveError.value = '';
+  saveSuccess.value = false;
+  axios.put('/api/v1/account/settings', {
+    username: username.value,
+    name: name.value,
+    emailNotifications: emailNotifications.value,
+  }).then(response => {
+    userStore.user.name = response.data.name;
+    saveSuccess.value = true;
+  }).catch(error => {
+    saveError.value = 'Failed to save settings.';
+  });
+}
 </script>
 
-<style scoped>
-
-.custom-toolbar-title {
-  color: #060000; /* Change this to your desired color */
-}
-</style>
+<template>
+  <v-main>
+    <v-app-bar height="75">
+      <v-app-bar-title>Settings</v-app-bar-title>
+    </v-app-bar>
+    <v-container class="pa-6" style="max-width: 600px;">
+      <v-alert v-if="loadError" type="error" class="mb-4">{{ loadError }}</v-alert>
+      <v-form v-if="!isLoading && !loadError" @submit.prevent="saveSettings">
+        <v-text-field
+          label="Username"
+          v-model="username"
+          disabled
+          hint="Set from your Google account and cannot be changed"
+          persistent-hint
+          class="mb-4"
+        ></v-text-field>
+        <v-text-field
+          label="Name"
+          v-model="name"
+          class="mb-4"
+        ></v-text-field>
+        <v-switch
+          v-model="emailNotifications"
+          label="Email Notifications"
+          color="primary"
+          true-icon="mdi-email"
+          false-icon="mdi-email-off"
+        ></v-switch>
+        <v-alert v-if="saveError" type="error" class="mb-4">{{ saveError }}</v-alert>
+        <v-alert v-if="saveSuccess" type="success" class="mb-4">Settings saved.</v-alert>
+        <v-btn color="primary" type="submit">CONFIRM</v-btn>
+      </v-form>
+    </v-container>
+  </v-main>
+</template>

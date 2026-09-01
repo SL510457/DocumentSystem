@@ -6,5 +6,5 @@ from controller.app import create_app
 def test_root_url():
     app = create_app()
     with app.test_client() as test_client:
-        response = test_client.get('/api/auth/')
+        response = test_client.get('/auth')
         assert response.status_code == 200

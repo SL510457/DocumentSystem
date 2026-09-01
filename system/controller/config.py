@@ -1,5 +1,7 @@
 class Config:
-    DEBUG = True
+    # DEBUG / SEED_DUMMY_DATA are read from the environment in create_app(),
+    # after load_dotenv() has run -- a value hardcoded here would win over the
+    # env var and silently re-enable the debugger in production.
     DATABASE_URI = 'your_database_uri'
 
     # API setup

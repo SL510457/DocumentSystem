@@ -16,7 +16,7 @@ def app() -> Flask:
 
     with app.app_context():
         db.create_all()
-        user = User(username="albert123", name="Albert", mail="albert@example.com", notification_flag=True)
+        user = User(username="albert123", name="Albert", mail="albert@example.com", google_id="google_id_albert123", notification_flag=True)
         db.session.add(user)
         db.session.commit()
 
@@ -27,25 +27,27 @@ def app() -> Flask:
 def client(app: Flask) -> FlaskClient:
     return app.test_client()
 
-# Test case for GET /account/settings with valid username
+# Test case for GET /account/settings/<username> with valid username
 def test_get_account_settings_success(client: FlaskClient):
-    response = client.get('/api/account/settings?username=albert123')
+    response = client.get('/api/account/settings/albert123')
     assert response.status_code == 200
     assert response.json == {
         'username': 'albert123',
         'name': 'Albert',
-        'notification_flag': True
+        'emailNotifications': True
     }
 
-# Test case for GET /account/settings without providing a username
+# Test case for GET /account/settings without a username in the path.
+# /settings with no path segment only has a PUT handler registered, so this
+# is a 405 (method not allowed), not a 404 — there's no way to omit the
+# username now that it's part of the URL path rather than a query param.
 def test_get_account_settings_no_username(client: FlaskClient):
     response = client.get('/api/account/settings')
-    assert response.status_code == 400
-    assert response.json == {"error": "Username is required"}
+    assert response.status_code == 405
 
-# Test case for GET /account/settings with an unknown username
+# Test case for GET /account/settings/<username> with an unknown username
 def test_get_account_settings_user_not_found(client: FlaskClient):
-    response = client.get('/api/account/settings?username=unknown')
+    response = client.get('/api/account/settings/unknown')
     assert response.status_code == 404
     assert response.json == {"error": "User not found"}
 
@@ -60,7 +62,7 @@ def test_update_account_settings_success(client: FlaskClient):
     assert response.json == {
         'username': 'albert123',
         'name': 'Albert Updated',
-        'notification_flag': False
+        'emailNotifications': False
     }
 
 # Test case for PUT /account/settings with missing fields

@@ -1,0 +1,14 @@
+# Secrets must never be baked into an image layer.
+# .gitignore does not apply to `docker build` — this file is the equivalent.
+.env
+**/.env
+**/client_secret.json
+
+# Build noise
+.git
+**/__pycache__
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+node_modules
+**/node_modules
