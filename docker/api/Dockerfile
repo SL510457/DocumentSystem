@@ -6,11 +6,13 @@ ENV ENVIRONMENT=${ENVIRONMENT}
 
 WORKDIR /app
 
+# Dependencies before source: editing a .py file then invalidates only the
+# COPY below, not the pip install above. The other way round, every one-line
+# change reinstalls every package -- slow here, painful on a small server.
 COPY requirements/$ENVIRONMENT.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY system .
-
-RUN pip install --no-cache-dir -r requirements.txt
 
 # Development keeps Flask's auto-reloader; production runs a real WSGI server.
 CMD sleep 15; \
