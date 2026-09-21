@@ -3,6 +3,7 @@ import os
 from flask import Flask, redirect, request
 from flask_admin import Admin
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .document.routes import documents
 from .auth.routes import auth
@@ -128,6 +129,16 @@ def create_app():
 
     # create instance
     app = Flask(__name__)
+
+    # Two proxies sit in front in production: Caddy terminates TLS, nginx does
+    # the routing. Without this, request.url is http:// even when the browser
+    # spoke https, and the Google OAuth callback fails with
+    # "(insecure_transport) OAuth 2 MUST utilize https".
+    #
+    # ProxyFix trusts X-Forwarded-* unconditionally, so the api container must
+    # never be reachable directly -- only Caddy publishes a port.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=1)
+
     app.secret_key = os.getenv("SECRET_KEY")
     # Google's OAuth library refuses plain HTTP unless this is set. Local dev runs
     # on http://localhost, production runs behind TLS -- so this must be opt-in,
