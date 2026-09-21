@@ -89,6 +89,10 @@ services:
       SQLALCHEMY_DATABASE_URI: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
       FLASK_DEBUG: "false"
       SEED_DUMMY_DATA: "false"
+      # Set here rather than left to .env: a server that forgot the variable
+      # would otherwise inherit the developer's "true" and serve OAuth over
+      # plain http. Production always terminates TLS at Caddy.
+      OAUTH_ALLOW_INSECURE_TRANSPORT: "false"
     volumes:
       - ./system/service/client_secret.json:/app/service/client_secret.json:ro
     depends_on:
