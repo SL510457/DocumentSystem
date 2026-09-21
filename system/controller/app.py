@@ -39,6 +39,41 @@ def env_flag(name):
     return os.getenv(name, 'false').strip().lower() in ('1', 'true', 'yes')
 
 
+# Rows the application addresses by id. The service layer hardcodes them
+# (audit_service uses 3 for "pending", document_service treats 4 as "not sent")
+# and so does the frontend, which renders each label from the id rather than
+# from the name column -- nothing ever reads these names. Documents, audits and
+# permissions all carry NOT NULL foreign keys here, so a database without these
+# rows cannot store a single document.
+#
+# They used to exist only inside init_dummy(), which meant a production
+# database -- where seeding is off by design -- came up with the lookup tables
+# empty and rejected every insert with a foreign key error.
+REFERENCE_DATA = (
+    (AuditStatus, {1: 'Approved', 2: 'Rejected', 3: 'Pending', 4: 'Not Sent'}),
+    # Nothing reads document_status yet, but the column is NOT NULL and
+    # create_document() writes 2, so both ids have to be there.
+    (DocumentStatus, {1: 'Draft', 2: 'Active'}),
+    (DocumentPermissionType, {1: 'read', 2: 'write'}),
+)
+
+
+def seed_reference_data(db):
+    """Insert whichever reference rows are missing.
+
+    Unlike init_dummy this runs in every environment on every start: it drops
+    nothing and only adds ids that are absent, so it is safe to repeat."""
+    added = []
+    for model, rows in REFERENCE_DATA:
+        for row_id, name in rows.items():
+            if db.session.get(model, row_id) is None:
+                db.session.add(model(id=row_id, name=name))
+                added.append(f"{model.__tablename__}[{row_id}]={name}")
+    if added:
+        db.session.commit()
+    return added
+
+
 def init_dummy(db):
     user_repo = UserRepository()
     audit_repo = AuditRepository()
@@ -176,6 +211,12 @@ def create_app():
             db.drop_all()
             db.create_all()
             init_dummy(db)
+
+        # After the dummy block, so a database that was just wiped gets them
+        # back too. Under gunicorn --preload this runs once in the master.
+        added = seed_reference_data(db)
+        if added:
+            app.logger.info('Seeded reference data: %s', ', '.join(added))
 
         # Under gunicorn --preload this runs once in the master process, before
         # it forks. Drop the connections so the workers each open their own
