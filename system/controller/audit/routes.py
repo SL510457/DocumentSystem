@@ -5,14 +5,17 @@ from service.audit_service import AuditService
 from service.user_service import UserService
 
 from .schema import NewAuditSchema
-from ..util import validate_json
+from ..util import validate_json, login_required, current_user
+from service.document_service import DocumentService
 
 # Create a Blueprint for the audit endpoints
 audit = Blueprint('audit', __name__)
 audit_service = AuditService()
+document_service = DocumentService()
 user_service = UserService()
 
 @audit.route('/', methods=['GET'], strict_slashes=False)
+@login_required
 def get_audits():
     """Retrieve all audits with optional sorting.
 
@@ -130,6 +133,16 @@ def request_audit():
     data = request.get_json()
     document_uid = data.get('documentUid')
     auditor_username = data.get('auditorUsername')
+
+    # Choosing who reviews a document is the owner's call. The document uid
+    # comes from the body, so it has to be checked here rather than by the
+    # document_access decorator, which reads the uid from the URL.
+    document, _mode, _is_auditor = document_service.get_access(current_user().id, document_uid)
+    if document is None:
+        return jsonify({"error": "Document not found"}), 404
+    if document.owner_id != current_user().id:
+        return jsonify({"error": "Not allowed"}), 403
+
     audit = audit_service.create_audit(document_uid, auditor_username)
     if audit:
         return jsonify(audit), 200

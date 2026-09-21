@@ -1,11 +1,13 @@
 from flask import Blueprint, jsonify, request, current_app
 from service.LlmService import LlmService
+from ..util import login_required
 
 # define llm as blueprint name
 llm = Blueprint('llm', __name__)
 llm_service = LlmService()
 
 @llm.route('/', methods=['POST'], strict_slashes=False)
+@login_required
 def get_llm_response():
     """
     Send selected text to the backend for processing with a language model and retrieve the result.

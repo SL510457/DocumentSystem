@@ -5,7 +5,15 @@ from service.document_service import DocumentService
 from service.audit_service import AuditService
 from service.user_service import UserService
 from .schema import NewDocumentSchema, UpdateDocumentSchema
-from ..util import validate_json
+from ..util import (
+    validate_json,
+    login_required,
+    document_access,
+    is_owner,
+    can_write,
+    can_read,
+    is_assigned_auditor,
+)
 from model.document_model import Document, DocumentStatus, DocumentComment, DocumentPermission, DocumentPermissionType
 
 documents = Blueprint('documents', __name__)
@@ -15,6 +23,7 @@ audit_service = AuditService()
 user_service = UserService()
 
 @documents.route('/', methods=['GET'], strict_slashes=False)
+@login_required
 def get_documents():
     """
     Retrieve all documents with optional sorting.
@@ -38,6 +47,7 @@ def get_documents():
     return jsonify({"documents": docs})
 
 @documents.route('/', methods=['POST'], strict_slashes=False)
+@login_required
 def create_document():
     """
     Create a new document based on provided data and return its unique identifier (UID).
@@ -67,6 +77,7 @@ def create_document():
     return jsonify({"documentUid": document_uid}), 201
 
 @documents.route('/<uid>', methods=['PUT'], strict_slashes=False)
+@document_access(can_write)
 @validate_json(UpdateDocumentSchema)
 def update_document(uid, body, comments):
     """Update the document's body and comments based on provided UID and validated JSON.
@@ -102,6 +113,7 @@ def update_document(uid, body, comments):
     return '', 200
 
 @documents.route('/<uid>', methods=['GET'], strict_slashes=False)
+@login_required
 def get_document(uid):
     """
     Retrieve the document details by its unique identifier (UID).
@@ -131,6 +143,7 @@ def get_document(uid):
         return jsonify(document), 200
 
 @documents.route('/<string:document_uid>/lock-session', methods=['DELETE'], strict_slashes=False)
+@login_required
 def delete_document_lock_session(document_uid):
     """
     Delete lock_session by (UID).
@@ -155,6 +168,7 @@ def delete_document_lock_session(document_uid):
         return jsonify(data), 400
 
 @documents.route('/<string:document_uid>/lock-session', methods=['PUT'])
+@login_required
 def update_document_lock_session(document_uid):
     """
     Example:
@@ -170,6 +184,7 @@ def update_document_lock_session(document_uid):
         return jsonify(data), 400
 
 @documents.route('/<string:document_uid>/audit-result', methods=['GET'])
+@document_access(can_read)
 def get_audit_result(document_uid):
     """
     Retrieve the audit result for a specific document identified by its UID.
@@ -190,6 +205,7 @@ def get_audit_result(document_uid):
         return jsonify({"error": "Audit record not found"}), 400
 
 @documents.route('/<string:document_uid>/audit-result', methods=['POST'])
+@document_access(is_assigned_auditor)
 def submit_audit_result(document_uid):
     """
     Submit or update the audit result for a specific document based on the provided UID.
@@ -233,6 +249,7 @@ def submit_audit_result(document_uid):
         return jsonify(error=f"Missing parameter: {str(e)}"), 400
 
 @documents.route('/<document_uid>', methods=['DELETE'], strict_slashes=False)
+@document_access(is_owner)
 def delete_document(document_uid):
     """
     Delete a document identified by its unique identifier (UID).
@@ -260,6 +277,7 @@ def delete_document(document_uid):
 
 
 @documents.route('/<document_uid>/audit-reminder', methods=['POST'], strict_slashes=False)
+@document_access(is_owner)
 def audit_reminder(document_uid):
     if document_service.document_reminder(document_uid):
         return jsonify({"message": "Notify auditor of ducument successfully"}), 200
@@ -267,6 +285,7 @@ def audit_reminder(document_uid):
         return jsonify({"error": "Failed to notify auditor"}), 404
 
 @documents.route('/<string:document_uid>/permissions', methods=['GET'])
+@document_access(can_read)
 def get_document_permissions(document_uid):
     """
     Example:
@@ -281,6 +300,7 @@ def get_document_permissions(document_uid):
         return jsonify({"error": "Internal server error"}), 500
 
 @documents.route('/<string:document_uid>/permissions', methods=['PUT'])
+@document_access(is_owner)
 def update_document_permission(document_uid):
     """
     Example:
@@ -306,6 +326,7 @@ def update_document_permission(document_uid):
         return jsonify({"error": "Internal server error"}), 500
 
 @documents.route('/<string:document_uid>/name', methods=['PUT'])
+@document_access(can_write)
 def update_document_name(document_uid):
     """
         Example:
