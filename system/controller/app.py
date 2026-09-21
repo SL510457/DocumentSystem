@@ -1,7 +1,7 @@
 import os
 
-from flask import Flask, redirect, request
-from flask_admin import Admin
+from flask import Flask, abort, redirect, request, session
+from flask_admin import Admin, AdminIndexView
 from dotenv import load_dotenv
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -31,6 +31,42 @@ from repo.document_repo import DocumentRepository
 from flask_admin.contrib.sqla import ModelView
 from model.user_model import User
 from model.base_model import db
+
+
+def admin_emails():
+    """The accounts allowed into /admin, from ADMIN_EMAILS (comma separated).
+    Unset means nobody -- the same secure-by-default rule the other flags use,
+    so a server that forgets the variable locks the panel rather than opening
+    it to every signed-in user."""
+    raw = os.getenv('ADMIN_EMAILS', '')
+    return {e.strip().lower() for e in raw.split(',') if e.strip()}
+
+
+class AdminAccess:
+    """Access control for Flask-Admin. Both the model views *and* the index
+    view need this: locking the model view alone leaves /admin itself open.
+
+    Flask-Admin edits rows directly, bypassing every permission rule in the
+    service layer, so this is the only thing standing between a visitor and
+    the documents table."""
+
+    def is_accessible(self):
+        email = session.get('email')
+        allowed = admin_emails()
+        return bool(email) and bool(allowed) and email.lower() in allowed
+
+    def inaccessible_callback(self, name, **kwargs):
+        # 404 rather than 403: a 403 confirms there is an admin panel here.
+        abort(404)
+
+
+class SecureAdminIndexView(AdminAccess, AdminIndexView):
+    pass
+
+
+class SecureModelView(AdminAccess, ModelView):
+    pass
+
 
 def env_flag(name):
     """Read a boolean flag from the environment. Anything unset is False, so a
@@ -254,8 +290,13 @@ def create_app():
     app.register_blueprint(users, url_prefix='/users')
 
     # import admin and register
-    admin = Admin(app, url="/admin", name='microblog', template_mode='bootstrap3')
-    admin.add_view(ModelView(Document, db.session))
+    admin = Admin(
+        app,
+        name='Document System',
+        template_mode='bootstrap3',
+        index_view=SecureAdminIndexView(url='/admin', endpoint='admin'),
+    )
+    admin.add_view(SecureModelView(Document, db.session))
 
     return app
 
