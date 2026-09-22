@@ -1,5 +1,7 @@
 # Document Review & Approval Platform
 
+[![tests](https://github.com/SL510457/DocumentSystem/actions/workflows/test.yml/badge.svg?branch=dev)](https://github.com/SL510457/DocumentSystem/actions/workflows/test.yml)
+
 ![Vue](https://img.shields.io/badge/Vue-3.4-42b883?logo=vue.js&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.0-000000?logo=flask&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.10-3776ab?logo=python&logoColor=white)
@@ -18,7 +20,7 @@
 
 ## Features
 
-- **Shared rich-text documents**: a Quill editor with inline comments. A database-backed editing lock stops two people overwriting each other; this is not real-time co-editing.
+- **Shared rich-text documents**: a Quill editor with inline comments. This is not real-time co-editing.
 - **Per-document permissions**: grant any user read or write access to a specific document; the owner keeps full control.
 - **Multi-stage approval workflow**: submit a document to a chosen auditor, who reviews it read-only and approves or rejects it with a written reason. Rejected documents stay editable and can be resubmitted.
 - **Two review perspectives**: *Audits* lists documents assigned **to you** as auditor; *Reviews* lists the status of documents **you can access**.
