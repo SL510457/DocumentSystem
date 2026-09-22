@@ -117,6 +117,29 @@ class DocumentService:
             return is_updated_succesfully
         return None
 
+    def get_access(self, user_id: int, document_uid: str):
+        """What the caller is allowed to do with a document.
+
+        Returns (document, mode, is_assigned_auditor), where mode follows the
+        rule the repository has always used: 2 for the owner or someone
+        granted write, 3 for the assigned auditor, 1 for read, and None for no
+        access at all. document is None when the uid does not exist.
+
+        is_assigned_auditor is reported separately rather than inferred from
+        mode == 3, because get_document_mode() answers 2 for the owner before
+        it ever looks at the audit -- so an owner who assigned the document to
+        themselves would otherwise not count as its auditor.
+        """
+        document = self.document_repo.get_document_by_uid(document_uid)
+        if document is None:
+            return None, None, False
+        user = self.user_repo.find_user_by_id(user_id)
+        if user is None:
+            return document, None, False
+        mode = self.document_repo.get_document_mode(user, document)
+        audit = self.audit_repo.get_audit_by_document_id(document.id)
+        return document, mode, bool(audit and audit.auditor_id == user.id)
+
     def get_document(self, user_id: str, document_uid: str) -> Optional[Dict]:
         document = self.document_repo.get_document_by_uid(document_uid)
         if document:

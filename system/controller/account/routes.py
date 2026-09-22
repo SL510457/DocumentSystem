@@ -2,6 +2,7 @@
 
 from flask import Blueprint, request, jsonify
 from service.user_service import UserService
+from ..util import login_required, current_user
 
 account = Blueprint('account', __name__)
 user_service = UserService()
@@ -53,6 +54,7 @@ user_service = UserService()
 #         return jsonify(error=str(e)), 409
 
 @account.route('/settings/<username>', methods=['GET'], strict_slashes=False)
+@login_required
 def get_account_settings(username):
     """
     Retrieve settings for a specified user account identified by username.
@@ -76,6 +78,11 @@ def get_account_settings(username):
                 "emailNotifications": true
             }
     """
+    # Your own settings only. The username is an email address, so without
+    # this anyone signed in could read any account by guessing an address.
+    if current_user().username != username:
+        return jsonify({"error": "Not allowed"}), 403
+
     settings = user_service.get_user_settings(username)
     if settings:
         return jsonify(settings), 200
@@ -83,6 +90,7 @@ def get_account_settings(username):
         return jsonify({"error": "User not found"}), 404
 
 @account.route('/settings', methods=['PUT'], strict_slashes=False)
+@login_required
 def update_account_settings():
     """
     Update user account settings based on provided JSON data.
@@ -113,6 +121,11 @@ def update_account_settings():
 
     if not username or not name or notification_flag is None:
         return jsonify({"error": "All fields (username, name, emailNotifications) are required"}), 400
+
+    # The username arrives in the body, so it is the caller's claim about who
+    # they are editing, not proof of it.
+    if current_user().username != username:
+        return jsonify({"error": "Not allowed"}), 403
 
     updated_settings = user_service.update_user_settings(username, name, notification_flag)
     if updated_settings:

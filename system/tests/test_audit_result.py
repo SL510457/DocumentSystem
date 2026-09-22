@@ -13,6 +13,7 @@ from controller.document.routes import documents
 def app() -> Flask:
     app = Flask(__name__)
     app.config['TESTING'] = True
+    app.config['SECRET_KEY'] = 'test'
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -118,8 +119,19 @@ def app() -> Flask:
 def client(app: Flask) -> FlaskClient:
     return app.test_client()
 
+
+OWNER = "google_id_56789"     # owns abc123 and bcd123
+AUDITOR = "google_id_67890"   # the auditor assigned to both
+
+
+def login(client: FlaskClient, google_id: str):
+    """Sign the test client in, the way the OAuth callback does."""
+    with client.session_transaction() as sess:
+        sess['google_id'] = google_id
+
 # Test case for GET: /documents/[UID]/audit-result with valid document_uid
 def test_get_audit_result_success(client: FlaskClient):
+    login(client, OWNER)
     response = client.get('/api/documents/abc123/audit-result')
     assert response.status_code == 200
     print(response.json)
@@ -136,14 +148,24 @@ def test_get_audit_result_success(client: FlaskClient):
   "auditedTime": "2024-05-28T00:00:00Z"
 }
 
-# Test case for GET: /documents/[UID]/audit-result with no document_uid
+# A uid nobody can see -- including one that does not exist -- is answered by
+# the access guard before the view runs, so this is 404 rather than the old
+# 400. Same answer either way, so the response does not reveal which it was.
 def test_get_audit_result_with_error_document_uid(client: FlaskClient):
+    login(client, OWNER)
     response = client.get('/api/documents/error_document_uid/audit-result')
-    assert response.status_code == 400
-    assert response.json == {"error": "Audit record not found"}
+    assert response.status_code == 404
+    assert response.json == {"error": "Document not found"}
+
+
+def test_get_audit_result_requires_login(client: FlaskClient):
+    response = client.get('/api/documents/abc123/audit-result')
+    assert response.status_code == 401
+    assert response.json == {"error": "Authentication required"}
 
 # Test case for POST: /documents/[UID]/audit-result with valid audit-result
 def test_post_audit_result_success(client: FlaskClient):
+    login(client, AUDITOR)
     data = {
         "auditStatus": 1,
         "rejectedReason": None
@@ -157,6 +179,7 @@ def test_post_audit_result_success(client: FlaskClient):
 
 # Test case for POST: /documents/[UID]/audit-result with invalid audit-result
 def test_post_audit_result_missing_rejectedReason(client: FlaskClient):
+    login(client, AUDITOR)
     data = {
         "auditStatus": 2
         # Missing rejectedReason
@@ -168,8 +191,9 @@ def test_post_audit_result_missing_rejectedReason(client: FlaskClient):
     assert response.status_code == 400
     assert response.json == {"error": "Missing parameter: 'rejectedReason'"}
 
-# Test case for POST: /documents/[UID]/audit-result with error document_uid
+# As above: stopped by the access guard, so 404 rather than the old 400.
 def test_post_audit_result_with_error_document_uid(client: FlaskClient):
+    login(client, AUDITOR)
     data = {
         "auditStatus": 1,
         "rejectedReason": None
@@ -178,5 +202,26 @@ def test_post_audit_result_with_error_document_uid(client: FlaskClient):
         '/api/documents/error_document_uid/audit-result',
         json=data
     )
-    assert response.status_code == 400
-    assert response.json == {"error": "Failed to update audit status"}
+    assert response.status_code == 404
+    assert response.json == {"error": "Document not found"}
+
+
+# Owning a document does not let you decide it. Only the auditor it was
+# submitted to can approve or reject -- otherwise the whole review step is
+# something the author can simply skip.
+def test_post_audit_result_rejects_the_owner(client: FlaskClient):
+    login(client, OWNER)
+    response = client.post(
+        '/api/documents/bcd123/audit-result',
+        json={"auditStatus": 1, "rejectedReason": None}
+    )
+    assert response.status_code == 403
+    assert response.json == {"error": "Not allowed"}
+
+
+def test_post_audit_result_requires_login(client: FlaskClient):
+    response = client.post(
+        '/api/documents/bcd123/audit-result',
+        json={"auditStatus": 1, "rejectedReason": None}
+    )
+    assert response.status_code == 401

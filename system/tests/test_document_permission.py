@@ -153,9 +153,18 @@ def app() -> Flask:
 def client(app: Flask) -> FlaskClient:
     return app.test_client()
 
-def test_get_document_permissions(client: FlaskClient):
+
+OWNER = "google_id_56789"      # owns abc123 and bcd123
+COLLABORATOR = "google_id_67890"   # read on abc123, write on bcd123, auditor of both
+
+
+def login(client: FlaskClient, google_id: str):
+    """Sign the test client in, the way the OAuth callback does."""
     with client.session_transaction() as sess:
-        sess['google_id'] = 'google_id_56789'
+        sess['google_id'] = google_id
+
+def test_get_document_permissions(client: FlaskClient):
+    login(client, OWNER)
     response = client.get('/api/documents/abc123/permissions')
     assert response.status_code == 200
     data = response.get_json()
@@ -164,6 +173,7 @@ def test_get_document_permissions(client: FlaskClient):
     assert data["permissions"][0]["username"] == "auditorUsername"
 
 def test_update_document_permission(client: FlaskClient):
+    login(client, OWNER)
     response = client.put('/api/documents/abc123/permissions', json={
         "username": "normalUsername",
         "permissionType": 2
@@ -173,6 +183,7 @@ def test_update_document_permission(client: FlaskClient):
     assert data["message"] == "Document permission updated successfully"
 
 def test_update_document_permission_missing_fields(client: FlaskClient):
+    login(client, OWNER)
     response = client.put('/api/documents/abc123/permissions', json={
         "username": "normalUsername"
     })
@@ -181,6 +192,7 @@ def test_update_document_permission_missing_fields(client: FlaskClient):
     assert data["error"] == "Username and permissionType fields are required"
 
 def test_update_document_name(client: FlaskClient):
+    login(client, OWNER)
     response = client.put('/api/documents/abc123/name', json={
         "name": "Updated Project Name"
     })
@@ -188,15 +200,70 @@ def test_update_document_name(client: FlaskClient):
     data = response.get_json()
     assert data["message"] == "Document name updated successfully"
 
-    with client.session_transaction() as sess:
-        sess['google_id'] = 'google_id_56789'
     response = client.get('/api/documents/abc123')
     assert response.status_code == 200
     data = response.get_json()
     assert data["name"] == "Updated Project Name"
 
 def test_update_document_name_missing_fields(client: FlaskClient):
+    login(client, OWNER)
     response = client.put('/api/documents/abc123/name', json={})
     assert response.status_code == 400
     data = response.get_json()
     assert data["error"] == "Name field is required"
+
+
+# --- who may do what -------------------------------------------------------
+#
+# These endpoints answered anonymous callers until the guards went in: with a
+# document uid -- and nothing else -- anyone could rename a document, hand
+# themselves write access to it, or delete it outright.
+
+def test_update_document_permission_requires_login(client: FlaskClient):
+    response = client.put('/api/documents/abc123/permissions', json={
+        "username": "normalUsername",
+        "permissionType": 2
+    })
+    assert response.status_code == 401
+    assert response.get_json() == {"error": "Authentication required"}
+
+
+def test_update_document_permission_rejects_non_owner(client: FlaskClient):
+    """Being able to read a document must not let you grant access to it,
+    least of all to yourself."""
+    login(client, COLLABORATOR)
+    response = client.put('/api/documents/abc123/permissions', json={
+        "username": "auditorUsername",
+        "permissionType": 2
+    })
+    assert response.status_code == 403
+    assert response.get_json() == {"error": "Not allowed"}
+
+
+def test_update_document_name_requires_login(client: FlaskClient):
+    response = client.put('/api/documents/abc123/name', json={"name": "x"})
+    assert response.status_code == 401
+
+
+def test_update_document_name_rejects_read_only_user(client: FlaskClient):
+    login(client, COLLABORATOR)
+    response = client.put('/api/documents/abc123/name', json={"name": "x"})
+    assert response.status_code == 403
+
+
+def test_delete_document_requires_login(client: FlaskClient):
+    response = client.delete('/api/documents/abc123')
+    assert response.status_code == 401
+
+
+def test_delete_document_rejects_non_owner(client: FlaskClient):
+    login(client, COLLABORATOR)
+    response = client.delete('/api/documents/abc123')
+    assert response.status_code == 403
+
+
+def test_unknown_document_is_not_found_rather_than_forbidden(client: FlaskClient):
+    """A uid the caller cannot see answers the same whether or not it exists,
+    so the response cannot be used to discover which uids are real."""
+    login(client, OWNER)
+    assert client.delete('/api/documents/no-such-uid').status_code == 404

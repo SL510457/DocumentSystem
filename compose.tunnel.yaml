@@ -1,0 +1,41 @@
+# Overlay for running the production stack on a laptop and still reaching it
+# from the public internet:
+#
+#   docker compose -f compose.prod.yaml -f compose.tunnel.yaml up -d
+#
+# cloudflared dials *out* to Cloudflare and public traffic arrives back down
+# that connection, so nothing has to listen on a public address: no port
+# forwarding at the router, no static IP, no ISP cooperation. Cloudflare
+# terminates TLS, which is what makes this workable on a .page domain -- the
+# whole TLD is HSTS-preloaded, so a self-signed certificate is not merely
+# inconvenient, browsers refuse it outright with no way to continue.
+#
+# Deliberately a separate overlay rather than part of compose.prod.yaml: the
+# tunnel exists because the origin is a laptop behind NAT. A server with its
+# own address does not need it, and Caddy goes back to terminating TLS there.
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    # The token identifies the tunnel and carries its credentials, so it is a
+    # secret: it lives in .env, never in this file or an image.
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - document_system_network
+    depends_on:
+      - nginx
+
+  # Public traffic now arrives through cloudflared, straight to nginx, so
+  # Caddy is no longer the entry point. Keep it running -- https://localhost
+  # still works for local checks -- but bind it to the loopback so it is not
+  # reachable from the local network the way 0.0.0.0 left it.
+  caddy:
+    # !override, not a plain list: Compose *appends* to ports when merging
+    # files, so without it caddy would end up bound to both 0.0.0.0 and
+    # 127.0.0.1 -- the same host port twice, and the LAN exposure still there.
+    ports: !override
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"

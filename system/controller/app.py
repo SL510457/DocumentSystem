@@ -1,8 +1,9 @@
 import os
 
-from flask import Flask, redirect, request
-from flask_admin import Admin
+from flask import Flask, abort, redirect, request, session
+from flask_admin import Admin, AdminIndexView
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .document.routes import documents
 from .auth.routes import auth
@@ -31,11 +32,82 @@ from flask_admin.contrib.sqla import ModelView
 from model.user_model import User
 from model.base_model import db
 
+
+def admin_emails():
+    """The accounts allowed into /admin, from ADMIN_EMAILS (comma separated).
+    Unset means nobody -- the same secure-by-default rule the other flags use,
+    so a server that forgets the variable locks the panel rather than opening
+    it to every signed-in user."""
+    raw = os.getenv('ADMIN_EMAILS', '')
+    return {e.strip().lower() for e in raw.split(',') if e.strip()}
+
+
+class AdminAccess:
+    """Access control for Flask-Admin. Both the model views *and* the index
+    view need this: locking the model view alone leaves /admin itself open.
+
+    Flask-Admin edits rows directly, bypassing every permission rule in the
+    service layer, so this is the only thing standing between a visitor and
+    the documents table."""
+
+    def is_accessible(self):
+        email = session.get('email')
+        allowed = admin_emails()
+        return bool(email) and bool(allowed) and email.lower() in allowed
+
+    def inaccessible_callback(self, name, **kwargs):
+        # 404 rather than 403: a 403 confirms there is an admin panel here.
+        abort(404)
+
+
+class SecureAdminIndexView(AdminAccess, AdminIndexView):
+    pass
+
+
+class SecureModelView(AdminAccess, ModelView):
+    pass
+
+
 def env_flag(name):
     """Read a boolean flag from the environment. Anything unset is False, so a
     server that forgot to set it gets the safe behaviour rather than the
     destructive one."""
     return os.getenv(name, 'false').strip().lower() in ('1', 'true', 'yes')
+
+
+# Rows the application addresses by id. The service layer hardcodes them
+# (audit_service uses 3 for "pending", document_service treats 4 as "not sent")
+# and so does the frontend, which renders each label from the id rather than
+# from the name column -- nothing ever reads these names. Documents, audits and
+# permissions all carry NOT NULL foreign keys here, so a database without these
+# rows cannot store a single document.
+#
+# They used to exist only inside init_dummy(), which meant a production
+# database -- where seeding is off by design -- came up with the lookup tables
+# empty and rejected every insert with a foreign key error.
+REFERENCE_DATA = (
+    (AuditStatus, {1: 'Approved', 2: 'Rejected', 3: 'Pending', 4: 'Not Sent'}),
+    # Nothing reads document_status yet, but the column is NOT NULL and
+    # create_document() writes 2, so both ids have to be there.
+    (DocumentStatus, {1: 'Draft', 2: 'Active'}),
+    (DocumentPermissionType, {1: 'read', 2: 'write'}),
+)
+
+
+def seed_reference_data(db):
+    """Insert whichever reference rows are missing.
+
+    Unlike init_dummy this runs in every environment on every start: it drops
+    nothing and only adds ids that are absent, so it is safe to repeat."""
+    added = []
+    for model, rows in REFERENCE_DATA:
+        for row_id, name in rows.items():
+            if db.session.get(model, row_id) is None:
+                db.session.add(model(id=row_id, name=name))
+                added.append(f"{model.__tablename__}[{row_id}]={name}")
+    if added:
+        db.session.commit()
+    return added
 
 
 def init_dummy(db):
@@ -128,6 +200,16 @@ def create_app():
 
     # create instance
     app = Flask(__name__)
+
+    # Two proxies sit in front in production: Caddy terminates TLS, nginx does
+    # the routing. Without this, request.url is http:// even when the browser
+    # spoke https, and the Google OAuth callback fails with
+    # "(insecure_transport) OAuth 2 MUST utilize https".
+    #
+    # ProxyFix trusts X-Forwarded-* unconditionally, so the api container must
+    # never be reachable directly -- only Caddy publishes a port.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=1)
+
     app.secret_key = os.getenv("SECRET_KEY")
     # Google's OAuth library refuses plain HTTP unless this is set. Local dev runs
     # on http://localhost, production runs behind TLS -- so this must be opt-in,
@@ -166,6 +248,12 @@ def create_app():
             db.create_all()
             init_dummy(db)
 
+        # After the dummy block, so a database that was just wiped gets them
+        # back too. Under gunicorn --preload this runs once in the master.
+        added = seed_reference_data(db)
+        if added:
+            app.logger.info('Seeded reference data: %s', ', '.join(added))
+
         # Under gunicorn --preload this runs once in the master process, before
         # it forks. Drop the connections so the workers each open their own
         # instead of inheriting -- and sharing -- the same sockets.
@@ -202,8 +290,13 @@ def create_app():
     app.register_blueprint(users, url_prefix='/users')
 
     # import admin and register
-    admin = Admin(app, url="/admin", name='microblog', template_mode='bootstrap3')
-    admin.add_view(ModelView(Document, db.session))
+    admin = Admin(
+        app,
+        name='Document System',
+        template_mode='bootstrap3',
+        index_view=SecureAdminIndexView(url='/admin', endpoint='admin'),
+    )
+    admin.add_view(SecureModelView(Document, db.session))
 
     return app
 
