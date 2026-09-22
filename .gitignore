@@ -5,12 +5,10 @@
 **/__pycache__
 **/.env
 **/client_secret.json
-PORTFOLIO.md
-REVIEWS_FEATURE.md
-DEPLOYMENT_PREP.md
-PROJECT_TWO_PAGES.md
-0921_LOCAL_PROD.md
-0921_DEPLOYMENT_LOG.md
+
+# 個人筆記與履歷素材：整個資料夾不進版控。
+# 注意只 ignore docs/notes/，docs/image/ 的截圖 README 要用，必須留在版控裡。
+docs/notes/
 # Logs
 logs
 *.log
