@@ -11,8 +11,7 @@
 
 > A collaborative document review platform. Write a document, share it with
 > read or write access, then submit it for approval so an assigned auditor can
-> approve or reject it with a reason. Email notifications are delivered
-> asynchronously through a message queue.
+> approve or reject it with a reason.
 
 ![Review status across every document a user can access](docs/image/reviews.png)
 
@@ -25,7 +24,6 @@
 - **Multi-stage approval workflow**: submit a document to a chosen auditor, who reviews it read-only and approves or rejects it with a written reason. Rejected documents stay editable and can be resubmitted.
 - **Two review perspectives**: *Audits* lists documents assigned **to you** as auditor; *Reviews* lists the status of documents **you can access**.
 - **Google sign-in**: OAuth 2.0, no password storage.
-- **Asynchronous email notifications**: the API publishes to RabbitMQ and a separate worker delivers the mail, so a slow SMTP server never blocks a request.
 - **AI writing assistance**: OpenAI-backed content suggestions inside the editor.
 
 ![The document workspace, with each document's review status](docs/image/document-home.png)
