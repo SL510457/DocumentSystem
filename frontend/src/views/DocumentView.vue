@@ -344,7 +344,7 @@ function changePermission(item, event) {
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text color="priamry" @click="sendAuditRequest">SEND</v-btn>
+          <v-btn text color="primary" @click="sendAuditRequest">SEND</v-btn>
           <v-btn text color="secondary" @click="closeAuditingDialog">CLOSE</v-btn>
         </v-card-actions>
       </v-card>
